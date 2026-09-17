@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+/* Palette + type taken from chheda-jewellers-pi.vercel.app: deep emerald, cream, copper; Cormorant + Montserrat. */
+@theme {
+  --color-emerald-950: #06241b;
+  --color-emerald-900: #0b3a2d;
+  --color-emerald-800: #124b39;
+  --color-emerald-700: #1a5c47;
+  --color-cream: #f7f3ec;
+  --color-cream-200: #e8ddc7;
+  --color-cream-300: #d9cdb2;
+  --color-sand: #b9ad93;
+  --color-copper: #c68d61;
+  --color-copper-600: #9a563a;
+  --color-peach: #f0cfaa;
+  --color-gold-100: #f6e7c8;
+  --color-gold-500: #c9a449;
+  --font-serif: var(--font-cormorant), "Cormorant", Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-montserrat), "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --shadow-glass: 0 20px 50px -25px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(247, 243, 236, 0.08) inset;
+}
+
+/* ---------- page ---------- */
+html { background: var(--color-emerald-900); }
+body {
+  @apply font-sans text-cream antialiased;
+  background-color: var(--color-emerald-900);
+  background-image:
+    radial-gradient(1100px 600px at 10% -10%, rgba(26, 92, 71, 0.55), transparent 60%),
+    radial-gradient(800px 500px at 100% 10%, rgba(198, 141, 97, 0.10), transparent 60%),
+    linear-gradient(180deg, rgba(6, 36, 27, 0) 0%, rgba(6, 36, 27, 0.6) 100%);
+  background-attachment: scroll;
+}
+::selection { background: rgba(198, 141, 97, 0.45); }
+input[type="date"]::-webkit-calendar-picker-indicator, input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.9) sepia(0.3); opacity: 0.8; }
+select option { background: #0b3a2d; color: #f7f3ec; }
+
+/* ---------- surfaces ---------- */
+@utility glass {
+  @apply rounded-[22px] border border-cream-200/15 bg-cream/[0.05] backdrop-blur-xl;
+  box-shadow: var(--shadow-glass);
+}
+@utility glass-dark {
+  @apply rounded-[22px] border border-cream-200/12 bg-emerald-950/80 text-cream backdrop-blur-xl;
+  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(247, 243, 236, 0.06) inset;
+}
+@utility surface { @apply rounded-2xl border border-cream-200/12 bg-cream/[0.04]; }
+@utility surface-strong { @apply rounded-2xl border border-copper/40 bg-copper/10; }
+@utility card { @apply glass p-5 sm:p-6; }
+@utility eyebrow { @apply font-sans text-[10.5px] font-semibold uppercase tracking-[0.22em] text-copper; }
+@utility card-title { @apply eyebrow; }
+@utility page-title { @apply font-serif text-4xl font-light tracking-tight text-cream sm:text-5xl; }
+@utility hint { @apply text-xs text-sand; }
+@utility text-muted { @apply text-cream-200/70; }
+@utility text-faint { @apply text-sand; }
+@utility text-copper { color: var(--color-copper); }
+
+/* ---------- buttons (pills, like the website) ---------- */
+@utility btn {
+  @apply relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full px-5 py-2.5 font-sans text-[11.5px] font-semibold uppercase tracking-[0.14em] transition-all duration-200 select-none;
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-copper/70 focus-visible:ring-offset-2 focus-visible:ring-offset-emerald-900;
+  @apply disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none;
+  @apply active:translate-y-px active:scale-[0.99];
+}
+@utility btn-primary {
+  @apply btn border border-cream/80 bg-cream text-emerald-900 hover:bg-white;
+  box-shadow: 0 14px 30px -14px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+}
+@utility btn-secondary {
+  @apply btn border border-copper/45 bg-cream/[0.04] text-cream backdrop-blur-md hover:border-copper/80 hover:bg-cream/10;
+  box-shadow: 0 1px 0 rgba(247, 243, 236, 0.06) inset;
+}
+@utility btn-danger {
+  @apply btn border border-red-300/40 bg-red-500/10 text-red-100 backdrop-blur-md hover:bg-red-500/20;
+}
+@utility btn-ghost-dark { @apply btn-secondary; }
+@utility btn-sm { @apply px-3.5 py-1.5 text-[10px] tracking-[0.12em]; }
+
+/* ---------- forms ---------- */
+@utility input {
+  @apply w-full rounded-xl border border-cream-200/20 bg-emerald-950/40 px-3 py-2.5 font-sans text-sm text-cream outline-none transition;
+  @apply placeholder:text-sand/60 focus:border-copper/70 focus:bg-emerald-950/60 focus:ring-4 focus:ring-copper/15;
+  @apply disabled:border-cream-200/10 disabled:bg-emerald-950/20 disabled:text-sand;
+  color-scheme: dark;
+}
+@utility label { @apply mb-1.5 block font-sans text-xs font-medium text-cream-200/85; }
+
+/* ---------- misc ---------- */
+@utility chip { @apply inline-flex items-center gap-1 rounded-full border border-cream-200/15 bg-cream/[0.05] px-2.5 py-0.5 font-sans text-xs text-cream-200; }
+@utility divider-gold { height: 1px; background: linear-gradient(90deg, transparent, rgba(198, 141, 97, 0.6), transparent); }
+@utility kbd-money { font-variant-numeric: tabular-nums; }
+@utility serif-num { @apply font-serif font-medium tracking-tight; font-variant-numeric: tabular-nums lining-nums; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@utility rise { animation: rise 0.4s ease-out both; }

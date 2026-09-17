@@ -1,0 +1,15 @@
+{
+  "name": "chheda-gold-rate-automation",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev:api": "npm run dev -w @chheda/api",
+    "dev:web": "npm run dev -w @chheda/web",
+    "dev:worker": "npm run dev -w @chheda/worker",
+    "seed": "npm run seed -w @chheda/api",
+    "test": "npm test -w @chheda/shared && npm test -w @chheda/api",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build:web": "npm run build -w @chheda/web"
+  },
+  "engines": { "node": ">=20" }
+}

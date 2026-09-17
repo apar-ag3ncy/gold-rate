@@ -1,0 +1,28 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { dateParamSchema, istDate } from '@chheda/shared';
+import { Delivery, SendDay } from '../models';
+import { requireAuth } from '../middleware/auth';
+import { parse } from '../middleware/validate';
+import { deliveryToDTO } from '../services/deliveries';
+
+const listQuery = z.object({ date: dateParamSchema.optional(), limit: z.coerce.number().int().min(1).max(200).default(50) });
+
+export function deliveriesRouter() {
+  const r = Router();
+  r.use(requireAuth);
+  r.get('/', async (req, res) => {
+    const q = parse(listQuery, req.query);
+    const date = q.date ?? istDate();
+    // channel-level rows only; per-recipient WhatsApp rows are summarised in `whatsapp`
+    const [items, day, wa] = await Promise.all([
+      Delivery.find({ date, recipientHash: { $exists: false } }).sort({ createdAt: -1 }).limit(q.limit).lean(),
+      SendDay.findOne({ date }).lean(),
+      Delivery.aggregate([{ $match: { date, recipientHash: { $exists: true } } }, { $group: { _id: '$status', n: { $sum: 1 }, delivered: { $sum: { $cond: [{ $in: ['$waStatus', ['delivered', 'read']] }, 1, 0] } }, read: { $sum: { $cond: [{ $eq: ['$waStatus', 'read'] }, 1, 0] } } } }]),
+    ]);
+    const whatsapp = { recipients: 0, sent: 0, failed: 0, queued: 0, delivered: 0, read: 0 };
+    for (const g of wa) { whatsapp.recipients += g.n; if (g._id === 'success') whatsapp.sent += g.n; else if (g._id === 'failed') whatsapp.failed += g.n; else whatsapp.queued += g.n; whatsapp.delivered += g.delivered; whatsapp.read += g.read; }
+    res.json({ date, items: items.map(deliveryToDTO), whatsapp, day: day ? { status: day.status, reason: day.reason, attempts: day.attempts ?? 0, lastCheckAt: day.lastCheckAt, sentAt: day.sentAt, healthCheckAt: day.healthCheckAt } : null });
+  });
+  return r;
+}

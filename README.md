@@ -16,7 +16,8 @@ cp .env.example .env              # then fill in values
 docker compose up -d              # local MongoDB (skip if using Atlas)
 npm run seed                      # creates the first admin from SEED_ADMIN_* in .env
 ```
-Password rule: 10+ characters with upper-case, lower-case and a number. Remove `SEED_ADMIN_PASSWORD` from `.env` after seeding.
+Password rule: 10+ characters with upper-case, lower-case and a number (locally you can override with `SEED_ALLOW_WEAK_PASSWORD=true`;
+`SEED_RESET_PASSWORD=true` changes an existing admin's password). `SEED_ADMIN_EMAIL` may be a plain username. Remove `SEED_ADMIN_PASSWORD` from `.env` after seeding.
 
 ## Run (two terminals)
 ```bash

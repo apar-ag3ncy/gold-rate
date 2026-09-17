@@ -32,8 +32,8 @@ export default function LoginPage() {
           <h1 className="mt-1 font-serif text-4xl font-light text-cream">Chheda Jewellers</h1>
           <p className="mt-1 font-sans text-[10px] uppercase tracking-[0.3em] text-sand">Gold rate admin</p>
         </div>
-        <label className="label" htmlFor="email">Email</label>
-        <input id="email" type="email" autoComplete="username" required className="input mb-4" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <label className="label" htmlFor="email">Username or email</label>
+        <input id="email" type="text" autoComplete="username" required className="input mb-4" value={email} onChange={(e) => setEmail(e.target.value)} />
         <label className="label" htmlFor="password">Password</label>
         <input id="password" type="password" autoComplete="current-password" required className="input mb-5" value={password} onChange={(e) => setPassword(e.target.value)} />
         {error && <p role="alert" className="mb-3 rounded-xl border border-red-300/30 bg-red-500/10 px-3 py-2 text-sm text-red-100">{error}</p>}

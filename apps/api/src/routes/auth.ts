@@ -8,7 +8,8 @@ import { requireAuth } from '../middleware/auth';
 import { parse } from '../middleware/validate';
 import { AuditLog } from '../models';
 
-const loginSchema = z.object({ email: z.string().email('Enter a valid email'), password: z.string().min(1, 'Required').max(200) });
+// `email` may be an email address or a plain username (stored lowercase in the same field)
+const loginSchema = z.object({ email: z.string().trim().min(1, 'Required').max(200), password: z.string().min(1, 'Required').max(200) });
 
 export function authRouter(cfg: Config) {
   const r = Router();

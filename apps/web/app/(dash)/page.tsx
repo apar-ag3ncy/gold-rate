@@ -7,6 +7,7 @@ import { RateCard, type Rate } from '@/components/RateCard';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Alert } from '@/components/Alert';
 import { CardSkeleton, EmptyState, ErrorState, Modal } from '@/components/ui';
+import { useSession } from '@/components/Shell';
 import type { Delivery } from '@/components/DeliveryList';
 
 type Summary = { today: string; tomorrow: string; todayRate: Rate | null; tomorrowRate: Rate | null };
@@ -15,7 +16,7 @@ type DayStatus = { status: string; reason?: string; attempts: number; lastCheckA
 type Integration = { channel: 'instagram' | 'whatsapp'; status: string; displayName?: string; expiresAt?: string; lastError?: string };
 type WaCounts = { recipients: number; sent: number; failed: number; queued: number; delivered: number; read: number };
 type Plan = { date: string; dryRun: boolean; canSend: boolean; reason?: string; subscribers: number; rate: { k24: number; k22: number; k18: number; extraPurities: { label: string; value: number }[] } | null; channels: { channel: string; enabled: boolean; alreadySent: boolean; recipients?: number; manual?: boolean }[] };
-type Data = { s: Summary; cfg: Settings; deliveries: Delivery[]; day: DayStatus; wa: WaCounts; openAlerts: number; integrations: Integration[]; dryRun: boolean; subscribers: number | null; me: { role: string } };
+type Data = { s: Summary; cfg: Settings; deliveries: Delivery[]; day: DayStatus; wa: WaCounts; integrations: Integration[]; dryRun: boolean; subscribers: number | null };
 
 const dayLabel: Record<string, { text: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' }> = {
   sent: { text: 'Sent', tone: 'ok' }, partial: { text: 'Partly sent', tone: 'bad' }, rate_missing: { text: 'Rate missing', tone: 'bad' }, skipped: { text: 'Skipped', tone: 'bad' }, pending: { text: 'Waiting for send time', tone: 'neutral' },
@@ -42,17 +43,21 @@ export default function Dashboard() {
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const session = useSession();
+  const role = session.me?.role;
   const load = useCallback(async () => {
+    if (!role) return; // wait for the shared /auth/me
     try {
-      const [s, cfg, del, al, integ, me] = await Promise.all([
+      const [s, cfg, del, integ] = await Promise.all([
         api<Summary>('/rates/summary'), api<{ settings: Settings }>('/settings'), api<{ items: Delivery[]; day: DayStatus; whatsapp: WaCounts }>('/deliveries'),
-        api<{ open: number }>('/alerts/count'), api<{ items: Integration[]; dryRun: boolean }>('/integrations'), api<{ user: { role: string } }>('/auth/me'),
+        api<{ items: Integration[]; dryRun: boolean }>('/integrations'),
       ]);
-      const subs = me.user.role === 'viewer' ? null : await api<{ counts: { active: number } }>('/subscribers?limit=1').then((r) => r.counts.active).catch(() => null);
-      setD({ s, cfg: cfg.settings, deliveries: del.items, day: del.day, wa: del.whatsapp, openAlerts: al.open, integrations: integ.items, dryRun: integ.dryRun, subscribers: subs, me: me.user });
+      const subs = role === 'viewer' ? null : await api<{ counts: { active: number } }>('/subscribers?limit=1').then((r) => r.counts.active).catch(() => null);
+      setD({ s, cfg: cfg.settings, deliveries: del.items, day: del.day, wa: del.whatsapp, integrations: integ.items, dryRun: integ.dryRun, subscribers: subs });
+      session.refreshAlerts();
       setErr(''); setRefreshedAt(new Date());
     } catch (e) { setErr((e as Error).message); }
-  }, []);
+  }, [role]);
 
   // auto-refresh every 30 s, paused while the tab is hidden
   useEffect(() => {
@@ -108,7 +113,7 @@ export default function Dashboard() {
   const autoRows = d.deliveries.filter((x) => !x.channel.endsWith('_manual') && x.trigger !== 'keyword');
   const manualRows = d.deliveries.filter((x) => x.channel.endsWith('_manual'));
   const failed = autoRows.filter((x) => x.status === 'failed');
-  const isAdmin = d.me.role === 'admin';
+  const isAdmin = role === 'admin';
 
   return (
     <div className="space-y-6">
@@ -165,7 +170,7 @@ export default function Dashboard() {
             </section>
           );
         })}
-        <section className={`card ${d.openAlerts ? 'border-red-300/30' : ''}`}><h2 className="card-title">Alerts</h2><p className={`mt-2 text-2xl font-bold ${d.openAlerts ? 'text-red-300' : 'text-emerald-300'}`}>{d.openAlerts}</p><p className="hint">unacknowledged</p><Link href="/alerts" className="mt-1 inline-block text-xs text-copper underline">Open alerts</Link></section>
+        <section className={`card ${session.openAlerts ? 'border-red-300/30' : ''}`}><h2 className="card-title">Alerts</h2><p className={`mt-2 text-2xl font-bold ${session.openAlerts ? 'text-red-300' : 'text-emerald-300'}`}>{session.openAlerts}</p><p className="hint">unacknowledged</p><Link href="/alerts" className="mt-1 inline-block text-xs text-copper underline">Open alerts</Link></section>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">

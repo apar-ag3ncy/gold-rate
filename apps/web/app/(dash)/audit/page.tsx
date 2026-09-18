@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { addDays, istDate } from '@chheda/shared';
 import { api, fmtDateTime } from '@/lib/api';
+import { useSession } from '@/components/Shell';
 import { AdminOnly, CardSkeleton, EmptyState, ErrorState, PageHeader, Pager } from '@/components/ui';
 
 type Entry = { id: string; at: string; userEmail?: string; action: string; entity?: string; entityId?: string; ip?: string; before?: any; after?: any };
@@ -22,12 +23,11 @@ function Diff({ before, after }: { before?: any; after?: any }) {
 
 export default function AuditPage() {
   const today = istDate();
-  const [me, setMe] = useState<{ role: string } | null>(null);
+  const { me } = useSession();
   const [f, setF] = useState({ user: '', action: '', from: addDays(today, -30), to: today, page: 1 });
   const [data, setData] = useState<{ total: number; items: Entry[]; actions: string[] } | null>(null);
   const [err, setErr] = useState('');
   const [open, setOpen] = useState<string | null>(null);
-  useEffect(() => { api<{ user: { role: string } }>('/auth/me').then((r) => setMe(r.user)).catch(() => {}); }, []);
   const load = () => { if (me?.role !== 'admin') return; api<any>(`/audit?${new URLSearchParams({ from: f.from, to: f.to, page: String(f.page), limit: '50', ...(f.user && { user: f.user }), ...(f.action && { action: f.action }) })}`).then((r) => { setData(r); setErr(''); }).catch((e) => setErr(e.message)); };
   useEffect(() => { load(); }, [f, me]);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value, page: 1 });

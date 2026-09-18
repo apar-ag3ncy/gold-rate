@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { api, fmtDate, fmtDateTime } from '@/lib/api';
+import { useSession } from '@/components/Shell';
 import { Alert } from '@/components/Alert';
 import { CardSkeleton, EmptyState } from '@/components/ui';
 
@@ -16,14 +17,13 @@ export default function AlertsPage() {
   const [status, setStatus] = useState<'open' | 'acked' | ''>('open');
   const [type, setType] = useState('');
   const [date, setDate] = useState('');
-  const [me, setMe] = useState<{ role: string } | null>(null);
+  const { me } = useSession();
   const [msg, setMsg] = useState<{ kind: 'error' | 'success'; title: string } | null>(null);
   const load = () => {
     const q = new URLSearchParams({ limit: '200', ...(status && { status }), ...(type && { type }), ...(date && { date }) });
     return api<{ items: AlertItem[]; openCount: number }>(`/alerts?${q}`).then((r) => { setItems(r.items); setOpenCount(r.openCount); }).catch((e) => setMsg({ kind: 'error', title: e.message }));
   };
   useEffect(() => { load(); }, [status, type, date]);
-  useEffect(() => { api<{ user: { role: string } }>('/auth/me').then((r) => setMe(r.user)).catch(() => {}); }, []);
   async function ack(id: string) { try { await api(`/alerts/${id}/ack`, { method: 'POST' }); await load(); } catch (e) { setMsg({ kind: 'error', title: (e as Error).message }); } }
   async function ackAll() {
     if (!items || !window.confirm(`Acknowledge all ${items.filter((i) => i.status === 'open').length} open alerts shown?`)) return;

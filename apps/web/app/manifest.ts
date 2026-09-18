@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: 'Chheda Rate',
     description: 'Share today’s gold rate to the Instagram Broadcast Channel, WhatsApp Channel and Community with one tap.',
     start_url: '/staff',
-    scope: '/',
+    scope: '/staff',
     display: 'standalone',
     background_color: '#0b3a2d',
     theme_color: '#0b3a2d',

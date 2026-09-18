@@ -1,10 +1,11 @@
 'use client';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { addDays, buildCaption, DEFAULT_CAPTION_TEMPLATE, istDate } from '@chheda/shared';
+import { addDays, buildCaption, DEFAULT_CAPTION_TEMPLATE, istDate, rateFormIsDirty, rateToForm, typedToNumber } from '@chheda/shared';
 import { api, ApiError, fmtDate, inr } from '@/lib/api';
 import { Alert } from '@/components/Alert';
-import { CardSkeleton } from '@/components/ui';
+import { CardSkeleton, ErrorState, LoadingGuard } from '@/components/ui';
+import Link from 'next/link';
 import { StatusBadge } from '@/components/StatusBadge';
 import type { Rate } from '@/components/RateCard';
 import type { Delivery } from '@/components/DeliveryList';
@@ -14,7 +15,6 @@ type Form = { k24: string; k22: string; k18: string; extraPurities: Extra[]; ove
 type Preview = { feedUrl: string; storyUrl: string; caption: string; saved: boolean; warnings?: string[] };
 type TestResult = { delivery: Delivery; dryRun: boolean; rendered: { feedUrl: string; storyUrl: string; caption: string } };
 const empty: Form = { k24: '', k22: '', k18: '', extraPurities: [], overrideReason: '' };
-const plain = (s: string) => /^\d+(\.\d{1,2})?$/.test(s.trim());
 
 function Steps({ current }: { current: number }) {
   const steps = ['Enter', 'Save', 'Preview', 'Approve', 'Test send'];
@@ -53,24 +53,23 @@ function RateForm() {
   const [copied, setCopied] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [testBusy, setTestBusy] = useState(false);
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [loadErr, setLoadErr] = useState('');
 
   useEffect(() => { api<{ settings: { captionTemplate: string } }>('/settings').then((r) => setTemplate(r.settings.captionTemplate)).catch(() => {}); }, []);
 
   const load = useCallback(async (d: string) => {
-    setMsg(null); setFieldErrors({}); setPreview(null); setTestResult(null);
+    setMsg(null); setFieldErrors({}); setPreview(null); setTestResult(null); setLoadState('loading'); setLoadErr('');
     try {
       const r = await api<{ rate: Rate }>(`/rates/${d}`);
       setRate(r.rate);
-      setForm({
-        k24: String(r.rate.k24), k22: String(r.rate.k22), k18: String(r.rate.k18),
-        extraPurities: r.rate.extraPurities.map((p) => ({ label: p.label, value: String(p.value) })),
-        overrideReason: (r.rate as any).overrideReason ?? '',
-      });
+      setForm(rateToForm(r.rate as any));
       const c = (r.rate as any).creativeUrls;
       if (c?.feed && (r.rate as any).caption) setPreview({ feedUrl: c.feed, storyUrl: c.story, caption: (r.rate as any).caption, saved: true });
+      setLoadState('ready');
     } catch (e) {
-      if (e instanceof ApiError && e.status === 404) { setRate(null); setForm(empty); }
-      else setMsg({ kind: 'error', title: (e as Error).message });
+      if (e instanceof ApiError && e.status === 404) { setRate(null); setForm(empty); setLoadState('ready'); }
+      else { setLoadState('error'); setLoadErr((e as Error).message); }
     }
   }, []);
 
@@ -85,7 +84,7 @@ function RateForm() {
     setBusy(true); setMsg(null); setFieldErrors({});
     try {
       const r = await api<{ rate: Rate; warnings: string[] }>(`/rates/${date}`, { method: 'PUT', body: form });
-      setRate(r.rate); setPreview(null); setTestResult(null);
+      setRate(r.rate); setForm(rateToForm(r.rate as any)); setPreview(null); setTestResult(null);   // form now mirrors the saved values
       setMsg(r.warnings.length
         ? { kind: 'warning', title: 'Saved as draft – please review, then approve.', items: r.warnings }
         : { kind: 'success', title: 'Saved as draft. Preview the image, check the values, then Approve.' });
@@ -119,8 +118,8 @@ function RateForm() {
     } catch (e) { setMsg({ kind: 'error', title: (e as Error).message }); }
   }
 
-  const dirty = !!rate && (String(rate.k24) !== form.k24 || String(rate.k22) !== form.k22 || String(rate.k18) !== form.k18
-    || JSON.stringify(rate.extraPurities.map((p) => ({ label: p.label, value: String(p.value) }))) !== JSON.stringify(form.extraPurities));
+  // BUG 1: compare by VALUE – "8512.50" typed vs 8512.5 stored is not a change
+  const dirty = rateFormIsDirty(form, rate);
   const savedUsable = !!rate && !dirty && rate.status !== 'cancelled';
 
   async function doPreview() {
@@ -158,15 +157,17 @@ function RateForm() {
     finally { setTestBusy(false); }
   }
 
+  // caption preview formats the NUMBER the API will store (8512.50 → ₹8,512.5), exactly like the image and the real caption
   const liveCaption = useMemo(() => {
-    const extras = form.extraPurities.filter((p) => p.label.trim() && plain(p.value));
-    if (!plain(form.k24) || !plain(form.k22) || !plain(form.k18)) return null;
-    try { return buildCaption(template, { date, k24: form.k24.trim(), k22: form.k22.trim(), k18: form.k18.trim(), extraPurities: extras.map((p) => ({ label: p.label.trim(), value: p.value.trim() })) }); }
-    catch { return null; }
+    const k24 = typedToNumber(form.k24), k22 = typedToNumber(form.k22), k18 = typedToNumber(form.k18);
+    if (k24 == null || k22 == null || k18 == null) return null;
+    const extras = form.extraPurities.filter((p) => p.label.trim() && typedToNumber(p.value) != null).map((p) => ({ label: p.label.trim(), value: typedToNumber(p.value)! }));
+    try { return buildCaption(template, { date, k24, k22, k18, extraPurities: extras }); } catch { return null; }
   }, [form, date, template]);
 
   const step = !rate || dirty ? (form.k24 || form.k22 || form.k18 ? 2 : 1) : rate.status === 'draft' ? (preview ? 4 : 3) : rate.status === 'approved' ? 5 : 5;
 
+  const placeholders: Record<'k24' | 'k22' | 'k18', string> = { k24: 'e.g. 11250', k22: 'e.g. 10350', k18: 'e.g. 8475' };
   const field = (k: 'k24' | 'k22' | 'k18', label: string, hero = false) => (
     <div className={`rounded-2xl border p-3.5 transition ${fieldErrors[k] ? 'border-red-300/50 bg-red-500/10' : hero ? 'border-copper/45 bg-copper/10' : 'border-cream-200/12 bg-cream/[0.04]'}`}>
       <label className="mb-1.5 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-copper" htmlFor={k}>
@@ -174,7 +175,7 @@ function RateForm() {
       </label>
       <div className="relative">
         <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-sand/80">₹</span>
-        <input id={k} inputMode="decimal" placeholder="e.g. 11250" className={`input kbd-money pl-8 pr-9 text-lg font-semibold ${fieldErrors[k] ? 'border-red-400' : ''}`}
+        <input id={k} inputMode="decimal" placeholder={placeholders[k]} className={`input kbd-money pl-8 pr-9 text-lg font-semibold ${fieldErrors[k] ? 'border-red-400' : ''}`}
           value={form[k]} onChange={set(k)} disabled={readOnly} aria-invalid={!!fieldErrors[k]} />
         <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-sand/80">/g</span>
       </div>
@@ -211,6 +212,7 @@ function RateForm() {
             </div>
           </div>
 
+          {loadState === 'error' && <ErrorState message={`Could not load the rate for ${fmtDate(date)}: ${loadErr}`} retry={() => load(date)} />}
           {locked && <Alert kind="warning" title="This rate has been sent and is locked." />}
           {past && !locked && <Alert kind="warning" title="Past dates are read-only." />}
 
@@ -316,7 +318,7 @@ function RateForm() {
                 <div className="mt-3 rounded-xl border border-violet-400/30 bg-violet-500/10 p-3 text-sm text-violet-100">
                   <p className="font-semibold">Test send recorded {testResult.dryRun && '(DRY RUN – logged, not transmitted)'}</p>
                   <p className="text-xs text-violet-200/90">Admin only · {testResult.delivery.recipient} · {new Date(testResult.delivery.createdAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</p>
-                  <p className="mt-1 text-xs text-violet-200/70">No customers were contacted. Real sends happen only via the scheduler / Send Now (Phases 3–4).</p>
+                  <p className="mt-1 text-xs text-violet-200/70">No customers were contacted. <Link className="underline" href={`/deliveries?from=${date}&to=${date}&channel=wa_admin&highlight=${testResult.delivery.id}`}>View this test in the delivery log</Link>.</p>
                 </div>
               )}
             </div>
@@ -328,5 +330,5 @@ function RateForm() {
 }
 
 export default function RatesPage() {
-  return <Suspense fallback={<div className="grid gap-6 lg:grid-cols-[1fr_340px]"><CardSkeleton lines={8} /><CardSkeleton lines={4} /></div>}><RateForm /></Suspense>;
+  return <Suspense fallback={<LoadingGuard><div className="grid gap-6 lg:grid-cols-[1fr_340px]"><CardSkeleton lines={8} /><CardSkeleton lines={4} /></div></LoadingGuard>}><RateForm /></Suspense>;
 }

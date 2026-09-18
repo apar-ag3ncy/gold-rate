@@ -4,7 +4,21 @@ export class ApiError extends Error {
   constructor(public status: number, message: string, public details?: any) { super(message); }
 }
 
-export async function api<T = any>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
+/** Identical GETs issued while one is still in flight share the same request (React StrictMode double effects, sibling components). */
+const inflight = new Map<string, Promise<unknown>>();
+
+export function api<T = any>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
+  const method = opts.method ?? 'GET';
+  if (method !== 'GET') return request<T>(path, opts);
+  const key = path;
+  const existing = inflight.get(key);
+  if (existing) return existing as Promise<T>;
+  const p = request<T>(path, opts).finally(() => { inflight.delete(key); });
+  inflight.set(key, p);
+  return p;
+}
+
+async function request<T>(path: string, opts: { method?: string; body?: unknown }): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`/api/v1${path}`, {

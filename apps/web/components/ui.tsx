@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /** Shared building blocks: loading skeletons, empty / error states, confirm modal, pager, page header. */
 export function Skeleton({ className = '' }: { className?: string }) {
@@ -65,6 +65,13 @@ export function Modal({ open, title, children, onClose, footer }: { open: boolea
       </div>
     </dialog>
   );
+}
+/** Suspense fallback that stops waiting: after `timeoutMs` it shows an error with Retry (reload) instead of an endless skeleton (BUG 3). */
+export function LoadingGuard({ timeoutMs = 12_000, children }: { timeoutMs?: number; children?: React.ReactNode }) {
+  const [stuck, setStuck] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setStuck(true), timeoutMs); return () => clearTimeout(t); }, [timeoutMs]);
+  if (stuck) return <ErrorState message="This page is taking too long to load. Your connection may have dropped or an old version is cached." retry={() => window.location.reload()} />;
+  return <>{children ?? <CardSkeleton lines={6} />}</>;
 }
 export function AdminOnly({ role, children }: { role?: string; children: React.ReactNode }) {
   if (!role) return <CardSkeleton />;

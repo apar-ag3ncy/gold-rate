@@ -275,6 +275,26 @@ updates, rollback, monitoring and the manual smoke test.
 
 **Docs** – `docs/RUNBOOK.md` (owner-facing), `docs/GO-LIVE.md` (pre-flight + 4-step rollout: dry-run trial → Instagram → small WhatsApp group → all).
 
+## Post-launch bug fixes (18 Sep 2026, manual browser test)
+1. **Approve/Test Send stuck after saving "8512.50"** – the form compared text (`"8512.50"`) with the stored number (8512.5).
+   Root cause fixed with value-based comparison (`rateFormIsDirty` / `sameRateValue` in `packages/shared/src/rateForm.ts`),
+   and the save response now resets the form to the saved values (`rateToForm`). Stored values stay exactly what was typed
+   (8512.50 and 8512.5 are the same number); **8512.500 is still blocked by the SPEC §5 max-2-decimals rule** (not changed).
+   Tests: `packages/shared/test/rateForm.test.ts`, `apps/api/test/api.test.ts` ("BUG 1 regression").
+2. **Rate images blocked by CSP in development** – `img-src` allowed only https. CSP is now built by `apps/web/lib/csp.mjs`
+   from the API/media URL: the http API origin is added in development only; production stays https-only (also for connect-src).
+   Test: `packages/shared/test/csp.test.ts`. Verified: preview (feed 1080×1080, story 1080×1920), staff share image and delivery
+   thumbnails render with no CSP errors.
+3. **/rates stuck on its skeleton after visiting /staff** – the staff service worker was registered at scope `/` and older
+   registrations kept controlling admin pages; a failed script fetch then left the Suspense fallback forever. Fixes: SW registered
+   with scope `/staff/` (manifest scope too), root-scope registrations are unregistered from both the staff page and the admin shell,
+   the SW has no fetch handler (never caches pages/API/images), `LoadingGuard` turns a Suspense fallback into an error + Retry after
+   12 s, the rate load itself shows an error + Retry on failure, and a chunk-load error shows a reload banner.
+4. **Delivery log hid future-dated rows** – default range is now −30 … +7 days (`defaultDeliveryLogRange`), the page accepts
+   `from/to/channel/status/trigger/highlight` query params, and a test send links straight to its highlighted row.
+Small fixes: distinct placeholders for 22K/18K; the live caption formats the number the API stores (same as image + caption);
+duplicate `auth/me`, `alerts/count` and `deliveries/log` calls removed (shared session context in the shell + in-flight GET coalescing in `lib/api.ts`).
+
 ## How to run / test
 ```bash
 npm install

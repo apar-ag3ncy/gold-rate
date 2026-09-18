@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { api, ApiError, fmtDateTime } from '@/lib/api';
+import { useSession } from '@/components/Shell';
 import { Alert } from '@/components/Alert';
 import { AdminOnly, CardSkeleton, EmptyState, ErrorState, Modal, PageHeader } from '@/components/ui';
 
@@ -8,7 +9,7 @@ type U = { id: string; email: string; name: string; role: 'admin' | 'staff' | 'v
 const roleHint = { admin: 'Enters and approves rates, changes settings, manages users.', staff: 'Uses the staff share app and can acknowledge alerts.', viewer: 'Read-only dashboard access.' };
 
 export default function UsersPage() {
-  const [me, setMe] = useState<{ id: string; role: string } | null>(null);
+  const { me } = useSession();
   const [items, setItems] = useState<U[] | null>(null);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState<{ kind: 'success' | 'error' | 'warning'; title: string } | null>(null);
@@ -16,7 +17,6 @@ export default function UsersPage() {
   const [busy, setBusy] = useState('');
   const [secret, setSecret] = useState<{ title: string; email: string; password: string } | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; text: string; run: () => Promise<void> } | null>(null);
-  useEffect(() => { api<{ user: { id: string; role: string } }>('/auth/me').then((r) => setMe(r.user)).catch(() => {}); }, []);
   const load = () => api<{ items: U[] }>('/users').then((r) => { setItems(r.items); setErr(''); }).catch((e) => setErr(e.message));
   useEffect(() => { if (me?.role === 'admin') load(); }, [me]);
   const fail = (e: unknown) => setMsg({ kind: 'error', title: e instanceof ApiError ? `${e.message}${e.details?.fields ? ' – ' + Object.values(e.details.fields).join(', ') : ''}` : (e as Error).message });

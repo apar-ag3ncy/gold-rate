@@ -30,7 +30,9 @@ export default function StaffPage() {
     (async () => {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) return setPush('unsupported');
       try {
-        const reg = await navigator.serviceWorker.register('/sw.js');
+        // scope /staff/ only: the worker never controls admin pages or API calls (it has no fetch handler either)
+        for (const r of await navigator.serviceWorker.getRegistrations()) if (!new URL(r.scope).pathname.startsWith('/staff')) await r.unregister();
+        const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/staff/' });
         const key = await api<{ publicKey: string | null; configured: boolean }>('/staff/push/vapid-public-key');
         if (!key.configured) return setPush('unconfigured');
         if (Notification.permission === 'denied') return setPush('denied');

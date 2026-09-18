@@ -151,3 +151,23 @@ describe('settings', () => {
     expect((await staff.put('/api/v1/settings', { automationOn: false })).status).toBe(403);
   });
 });
+
+describe('BUG 1 regression – decimals with trailing zeros', () => {
+  it('8512.50 / 8512.5 save as the same exact value and can be approved; 8512.500 is blocked by the 2-decimal rule', async () => {
+    const admin = await login(app, 'admin@chheda.test');
+    const d = addDays(today, 3);
+    for (const t of ['8512.50', '8512.5']) {
+      const r = await admin.put(`${R}/${d}`, { k24: '11250', k22: '10305.50', k18: t, extraPurities: [{ label: '14K', value: '6560.50' }] });
+      expect(r.status, t).toBe(200);
+      expect(r.body.rate.k18).toBe(8512.5);
+      expect(r.body.rate.k22).toBe(10305.5);
+      expect(r.body.rate.extraPurities[0].value).toBe(6560.5);
+      expect((await Rate.findOne({ date: d }))!.k18).toBe(8512.5);
+    }
+    expect((await admin.put(`${R}/${d}`, { k24: '11250', k22: '10305.5', k18: '8512.500' })).status).toBe(422);
+    const ok = await admin.post(`${R}/${d}/approve`);
+    expect(ok.status).toBe(200);
+    expect(ok.body.rate.status).toBe('approved');
+    await admin.post(`${R}/${d}/cancel`, { reason: 'cleanup' });
+  });
+});

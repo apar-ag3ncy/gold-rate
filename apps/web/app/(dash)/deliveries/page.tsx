@@ -1,9 +1,10 @@
 'use client';
-import { Fragment, useEffect, useState } from 'react';
-import { addDays, istDate } from '@chheda/shared';
+import { Fragment, Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { addDays, defaultDeliveryLogRange, istDate } from '@chheda/shared';
 import { api, channelLabel, fmtDate, fmtDateTime, triggerLabel } from '@/lib/api';
 import { StatusBadge } from '@/components/StatusBadge';
-import { CardSkeleton, EmptyState, ErrorState, PageHeader, Pager } from '@/components/ui';
+import { CardSkeleton, EmptyState, ErrorState, LoadingGuard, PageHeader, Pager } from '@/components/ui';
 import type { Delivery } from '@/components/DeliveryList';
 
 type Row = Delivery & { attempts: number; externalId?: string; metaErrorCode?: number; retryable?: boolean; caption?: string; waStatus?: string };
@@ -11,13 +12,17 @@ type KeywordLog = { date: string; todayCount: number; items: { id: string; chann
 const CHANNELS = Object.keys(channelLabel);
 const STATUSES = ['queued', 'success', 'failed', 'pending_manual', 'skipped', 'test'];
 
-export default function DeliveriesPage() {
+function DeliveriesLog() {
   const today = istDate();
-  const [f, setF] = useState({ from: addDays(today, -30), to: today, channel: '', status: '', trigger: '', page: 1 });
+  const params = useSearchParams();
+  const defaults = defaultDeliveryLogRange(today, addDays);   // BUG 4: include the coming week (tomorrow's test sends)
+  const initial = { from: params.get('from') ?? defaults.from, to: params.get('to') ?? defaults.to, channel: params.get('channel') ?? '', status: params.get('status') ?? '', trigger: params.get('trigger') ?? '', page: 1 };
+  const highlight = params.get('highlight');
+  const [f, setF] = useState(initial);
   const [data, setData] = useState<{ total: number; items: Row[] } | null>(null);
   const [kw, setKw] = useState<KeywordLog | null>(null);
   const [err, setErr] = useState('');
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(highlight);
   const qs = () => new URLSearchParams({ from: f.from, to: f.to, page: String(f.page), limit: '25', ...(f.channel && { channel: f.channel }), ...(f.status && { status: f.status }), ...(f.trigger && { trigger: f.trigger }) }).toString();
   const load = () => api<{ total: number; items: Row[] }>(`/deliveries/log?${qs()}`).then((r) => { setData(r); setErr(''); }).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, [f]);
@@ -35,7 +40,7 @@ export default function DeliveriesPage() {
         <div><label className="label mb-1 text-xs" htmlFor="ch">Channel</label><select id="ch" className="input py-1.5" value={f.channel} onChange={set('channel')}><option value="">All</option>{CHANNELS.map((c) => <option key={c} value={c}>{channelLabel[c]}</option>)}</select></div>
         <div><label className="label mb-1 text-xs" htmlFor="st">Status</label><select id="st" className="input py-1.5" value={f.status} onChange={set('status')}><option value="">All</option>{STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}</select></div>
         <div><label className="label mb-1 text-xs" htmlFor="tr">Trigger</label><select id="tr" className="input py-1.5" value={f.trigger} onChange={set('trigger')}><option value="">All</option>{Object.entries(triggerLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
-        <button type="button" className="btn-secondary btn-sm" onClick={() => setF({ from: addDays(today, -30), to: today, channel: '', status: '', trigger: '', page: 1 })}>Reset</button>
+        <button type="button" className="btn-secondary btn-sm" onClick={() => setF({ ...defaults, channel: '', status: '', trigger: '', page: 1 })}>Reset</button>
       </form>
       {err && <ErrorState message={err} retry={load} />}
       {!data ? <CardSkeleton lines={6} /> : data.items.length === 0 ? <EmptyState title="No deliveries match these filters" /> : (
@@ -46,7 +51,7 @@ export default function DeliveriesPage() {
               <tbody>
                 {data.items.map((r) => (
                   <Fragment key={r.id}>
-                    <tr className="border-b border-cream-200/10 hover:bg-cream/[0.04]">
+                    <tr id={`row-${r.id}`} className={`border-b border-cream-200/10 hover:bg-cream/[0.04] ${highlight === r.id ? 'bg-copper/15' : ''}`}>
                       <td className="whitespace-nowrap px-4 py-2.5 text-xs">{fmtDateTime(r.createdAt)}</td>
                       <td className="whitespace-nowrap pr-3 text-xs">{fmtDate(r.date)}</td>
                       <td className="pr-3">{channelLabel[r.channel] ?? r.channel}{r.recipient && <span className="block text-xs text-cream-200/70">to {r.recipient}</span>}{r.stats && <span className="block text-xs text-cream-200/70">{r.stats.sent}/{r.stats.total} sent · {r.stats.failed} failed</span>}</td>
@@ -92,4 +97,8 @@ export default function DeliveriesPage() {
       </section>
     </div>
   );
+}
+
+export default function DeliveriesPage() {
+  return <Suspense fallback={<LoadingGuard />}><DeliveriesLog /></Suspense>;
 }

@@ -1,4 +1,6 @@
 import type { NextConfig } from 'next';
+// @ts-expect-error plain ESM helper (unit-tested in packages/shared/test/csp.test.ts)
+import { buildCsp } from './lib/csp.mjs';
 
 const api = process.env.API_INTERNAL_URL ?? 'http://localhost:4000';
 
@@ -20,13 +22,7 @@ const config: NextConfig = {
         { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
         { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
         { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
-        // images come from the API / Cloudinary; everything else is same-origin. Next needs inline scripts/styles for hydration.
-        { key: 'Content-Security-Policy', value: [
-          "default-src 'self'", "base-uri 'self'", "frame-ancestors 'none'", "form-action 'self'", "object-src 'none'",
-          "img-src 'self' data: blob: https:", "font-src 'self' https://fonts.gstatic.com", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-          `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
-          `connect-src 'self' ${api} https://*.ingest.sentry.io https://*.ingest.de.sentry.io`, "worker-src 'self'", "manifest-src 'self'",
-        ].join('; ') },
+        { key: 'Content-Security-Policy', value: buildCsp({ apiUrl: api, mediaUrl: process.env.MEDIA_PUBLIC_URL ?? api, isProd: process.env.NODE_ENV === 'production' }) },
       ],
     }];
   },

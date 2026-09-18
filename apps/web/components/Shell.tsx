@@ -1,10 +1,14 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { ErrorState } from './ui';
 import { api } from '@/lib/api';
 
-type Me = { email: string; name: string; role: 'admin' | 'staff' | 'viewer' };
+type Me = { id: string; email: string; name: string; role: 'admin' | 'staff' | 'viewer' };
+/** One /auth/me and one /alerts/count per page, shared with every page component (no duplicate calls on load). */
+const SessionContext = createContext<{ me: Me | null; openAlerts: number; refreshAlerts: () => void }>({ me: null, openAlerts: 0, refreshAlerts: () => {} });
+export const useSession = () => useContext(SessionContext);
 const nav: { href: string; label: string; exact?: boolean; admin?: boolean }[] = [
   { href: '/', label: 'Dashboard' },
   { href: '/rates', label: 'Enter Rate' },
@@ -26,11 +30,20 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [clock, setClock] = useState('');
   const [openAlerts, setOpenAlerts] = useState(0);
 
+  const [chunkError, setChunkError] = useState(false);
   useEffect(() => { api<{ user: Me }>('/auth/me').then((r) => setMe(r.user)).catch(() => {}); }, []);
+  const refreshAlerts = useCallback(() => { api<{ open: number }>('/alerts/count').then((r) => setOpenAlerts(r.open)).catch(() => {}); }, []);
+  useEffect(() => { refreshAlerts(); const id = setInterval(refreshAlerts, 60_000); return () => clearInterval(id); }, [path, refreshAlerts]);
+  // BUG 3 guards: (a) a failed JS chunk (stale deploy / flaky network) shows a banner with Retry instead of a dead page;
+  // (b) any service worker registered at the site root (older staff-app builds) is removed – admin pages must never be served by a SW.
   useEffect(() => {
-    const f = () => api<{ open: number }>('/alerts/count').then((r) => setOpenAlerts(r.open)).catch(() => {});
-    f(); const id = setInterval(f, 60_000); return () => clearInterval(id);
-  }, [path]);
+    const isChunk = (m: string) => /ChunkLoadError|Loading chunk [^ ]* failed|Failed to fetch dynamically imported module/i.test(m);
+    const onErr = (e: ErrorEvent) => { if (isChunk(String(e.message))) setChunkError(true); };
+    const onRej = (e: PromiseRejectionEvent) => { if (isChunk(String(e.reason?.message ?? e.reason))) setChunkError(true); };
+    window.addEventListener('error', onErr); window.addEventListener('unhandledrejection', onRej);
+    navigator.serviceWorker?.getRegistrations?.().then((regs) => regs.forEach((r) => { if (!new URL(r.scope).pathname.startsWith('/staff')) r.unregister(); })).catch(() => {});
+    return () => { window.removeEventListener('error', onErr); window.removeEventListener('unhandledrejection', onRej); };
+  }, []);
   useEffect(() => {
     const t = () => setClock(new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }));
     t(); const id = setInterval(t, 30_000); return () => clearInterval(id);
@@ -82,7 +95,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
       </header>
-      <main id="main" className="mx-auto max-w-6xl px-4 py-8 sm:py-10 rise">{children}</main>
+      <main id="main" className="mx-auto max-w-6xl px-4 py-8 sm:py-10 rise">
+        {chunkError && <div className="mb-4"><ErrorState message="Part of the app failed to load (a new version may have been deployed). Reload to continue." retry={() => window.location.reload()} /></div>}
+        <SessionContext.Provider value={{ me, openAlerts, refreshAlerts }}>{children}</SessionContext.Provider>
+      </main>
     </div>
   );
 }

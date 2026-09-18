@@ -1,4 +1,5 @@
-/* Chheda staff share – service worker: web push + notification click. No offline caching of rate data (never show an old rate). */
+/* Chheda staff share – service worker for web push + notification click ONLY.
+   Registered with scope '/staff/'. Deliberately NO 'fetch' handler: nothing (pages, API responses, images) is ever cached or intercepted – an old rate must never be served. */
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener('push', (event) => {

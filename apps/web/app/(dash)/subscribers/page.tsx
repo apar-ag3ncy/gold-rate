@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
+import { useSession } from '@/components/Shell';
 import { Alert } from '@/components/Alert';
 import { CardSkeleton, EmptyState } from '@/components/ui';
 
@@ -13,7 +14,7 @@ const fmt = (d?: string) => d ? new Date(d).toLocaleDateString('en-IN', { timeZo
 
 export default function SubscribersPage() {
   const [data, setData] = useState<Resp | null>(null);
-  const [me, setMe] = useState<Me | null>(null);
+  const { me } = useSession();
   const [filter, setFilter] = useState('');
   const [phone, setPhone] = useState(''); const [name, setName] = useState(''); const [source, setSource] = useState('in_store');
   const [csv, setCsv] = useState('');
@@ -21,7 +22,6 @@ export default function SubscribersPage() {
   const [busy, setBusy] = useState(false);
   const load = (st = filter) => api<Resp>(`/subscribers${st ? `?status=${st}` : ''}`).then(setData).catch((e) => setMsg({ kind: 'error', title: e.message }));
   useEffect(() => { load(filter); }, [filter]);
-  useEffect(() => { api<{ user: Me }>('/auth/me').then((r) => setMe(r.user)).catch(() => {}); }, []);
   const isAdmin = me?.role === 'admin';
 
   async function add() {

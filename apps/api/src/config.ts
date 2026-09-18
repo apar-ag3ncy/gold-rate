@@ -53,6 +53,8 @@ const schema = z.object({
   SENTRY_DSN: z.string().optional(),
   APP_VERSION: z.string().optional(),        // release tag (git sha) – set by the deploy script / CI
   WORKER_PORT: z.coerce.number().int().default(4100),
+  /** DEV ONLY: every request without a session runs as this user (no login screen). Refused in production. */
+  DEV_AUTO_LOGIN_EMAIL: z.string().email().optional(),
 });
 
 export type Config = z.infer<typeof schema> & { MEDIA_BASE_URL: string; WEB_PUBLIC_URL: string };
@@ -69,6 +71,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   const problems: string[] = [];
   if (cfg.NODE_ENV === 'production') {
+    if (cfg.DEV_AUTO_LOGIN_EMAIL) problems.push('DEV_AUTO_LOGIN_EMAIL must not be set in production (it disables login)');
     if (!cfg.ENCRYPTION_KEY) problems.push('ENCRYPTION_KEY is required (openssl rand -base64 32)');
     if (!cfg.WEB_ORIGIN.startsWith('https://')) problems.push('WEB_ORIGIN must be https');
     if (cfg.MEDIA_BASE_URL && !cfg.MEDIA_BASE_URL.startsWith('https://')) problems.push('MEDIA_BASE_URL must be https (Instagram fetches images from it)');

@@ -9,7 +9,7 @@ import { ZodError } from 'zod';
 import type { Config } from './config';
 import { logger } from './lib/logger';
 import { HttpError } from './lib/errors';
-import { csrfGuard, loadUser } from './middleware/auth';
+import { csrfGuard, loadUser, setDevAutoLogin } from './middleware/auth';
 import { authRouter } from './routes/auth';
 import { ratesRouter } from './routes/rates';
 import { settingsRouter } from './routes/settings';
@@ -35,6 +35,7 @@ export function createApp(cfg: Config) {
   const storage = createStorage(cfg);
   setAlertNotifier(cfg);
   setWebhookStorage(storage);
+  setDevAutoLogin(cfg.NODE_ENV !== 'production' && cfg.DEV_AUTO_LOGIN_EMAIL ? cfg.DEV_AUTO_LOGIN_EMAIL : null);
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use(helmet());

@@ -55,6 +55,7 @@ describe('config fails fast', () => {
     expect(() => loadConfig({ ...base, ENCRYPTION_KEY: 'short' })).toThrow(/32 bytes/);
     expect(() => loadConfig({ ...base, DRY_RUN: 'false' })).toThrow(/META_APP_SECRET/);
     expect(() => loadConfig({ ...base, STORAGE_DRIVER: 'cloudinary', CLOUDINARY_API_SECRET: undefined })).toThrow(/CLOUDINARY/);
+    expect(() => loadConfig({ ...base, DEV_AUTO_LOGIN_EMAIL: 'admin@x.test' })).toThrow(/DEV_AUTO_LOGIN_EMAIL must not be set in production/);
   });
 });
 

@@ -11,9 +11,10 @@ const styles: Record<string, string> = {
   pending_manual: 'bg-amber-400/15 text-amber-100 ring-amber-300/30',
   skipped: 'bg-cream/10 text-cream-200 ring-cream-200/20',
   not_connected: 'bg-cream/10 text-cream-200 ring-cream-200/20',
+  connected: 'bg-emerald-400/15 text-emerald-100 ring-emerald-300/30',
 };
-const dots: Record<string, string> = { draft: 'bg-amber-300', approved: 'bg-emerald-300', sent: 'bg-sky-300', cancelled: 'bg-cream-300', missing: 'bg-red-300', test: 'bg-peach', success: 'bg-emerald-300', failed: 'bg-red-300' };
-const labels: Record<string, string> = { draft: 'Draft – needs approval', approved: 'Approved', sent: 'Sent', cancelled: 'Cancelled', missing: 'Not entered', test: 'Test', pending_manual: 'Pending (staff)', not_connected: 'Not connected', success: 'Connected' };
+const dots: Record<string, string> = { connected: 'bg-emerald-300', draft: 'bg-amber-300', approved: 'bg-emerald-300', sent: 'bg-sky-300', cancelled: 'bg-cream-300', missing: 'bg-red-300', test: 'bg-peach', success: 'bg-emerald-300', failed: 'bg-red-300' };
+const labels: Record<string, string> = { draft: 'Draft – needs approval', approved: 'Approved', sent: 'Sent', cancelled: 'Cancelled', missing: 'Not entered', test: 'Test', pending_manual: 'Pending (staff)', not_connected: 'Not connected', connected: 'Connected', success: 'Sent', failed: 'Failed', skipped: 'Skipped', queued: 'Queued' };
 
 export function StatusBadge({ status, short }: { status: string; short?: boolean }) {
   const text = short ? (labels[status] && status !== 'draft' ? labels[status] : status.charAt(0).toUpperCase() + status.slice(1)) : labels[status] ?? status;

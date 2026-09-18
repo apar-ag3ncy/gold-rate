@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { buildCaption, validateCaptionTemplate, CAPTION_PLACEHOLDERS, istDate } from '@chheda/shared';
 import { api, ApiError } from '@/lib/api';
 import { Alert } from '@/components/Alert';
+import { CardSkeleton } from '@/components/ui';
 import type { Rate } from '@/components/RateCard';
 
 type Settings = {
@@ -64,7 +65,7 @@ export default function SettingsPage() {
     try { return buildCaption(s.captionTemplate, sample); } catch { return ''; }
   }, [s, check.ok, sample]);
 
-  if (!s) return <p className="text-sand">Loading…</p>;
+  if (!s) return <div className="grid gap-5 lg:grid-cols-2"><CardSkeleton lines={4} /><CardSkeleton lines={5} /></div>;
 
   async function save() {
     setBusy(true); setMsg(null);

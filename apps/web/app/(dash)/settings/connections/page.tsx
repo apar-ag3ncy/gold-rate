@@ -1,13 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, fmtDateTime } from '@/lib/api';
 import { Alert } from '@/components/Alert';
 import { StatusBadge } from '@/components/StatusBadge';
+import { CardSkeleton, ErrorState } from '@/components/ui';
 
 type Item = { channel: 'instagram' | 'whatsapp'; status: 'not_configured' | 'connected' | 'error'; hasToken: boolean; tokenTail?: string; accountId?: string; phoneNumberId?: string; displayName?: string; expiresAt?: string; lastHealthCheck?: string; lastError?: string; updatedAt?: string; updatedBy?: string };
 type Resp = { items: Item[]; dryRun: boolean; graphVersion: string; webhooksConfigured: boolean };
-const badge = { not_configured: 'not_connected', connected: 'success', error: 'failed' } as const;
-const fmt = (d?: string) => d ? new Date(d).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : '–';
+const badge = { not_configured: 'not_connected', connected: 'connected', error: 'failed' } as const;
+const fmt = (d?: string) => fmtDateTime(d);
 
 function ConnectionCard({ item, onChange, dryRun }: { item: Item; onChange: () => Promise<void>; dryRun: boolean }) {
   const ig = item.channel === 'instagram';
@@ -94,8 +95,8 @@ export default function ConnectionsPage() {
   const [err, setErr] = useState('');
   const load = () => api<Resp>('/integrations').then(setData).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []);
-  if (err) return <p className="text-red-300">{err}</p>;
-  if (!data) return <p className="text-sand">Loading…</p>;
+  if (err) return <ErrorState message={err} retry={load} />;
+  if (!data) return <div className="grid gap-5 lg:grid-cols-2"><CardSkeleton lines={6} /><CardSkeleton lines={6} /></div>;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   return (
     <div className="space-y-5">

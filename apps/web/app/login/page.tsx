@@ -1,10 +1,14 @@
 'use client';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { api, ApiError } from '@/lib/api';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const expired = params.get('expired') === '1';
+  const next = params.get('next');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -15,7 +19,7 @@ export default function LoginPage() {
     setBusy(true); setError('');
     try {
       const r = await api<{ user: { role: string } }>('/auth/login', { method: 'POST', body: { email, password } });
-      router.replace(r.user.role === 'staff' ? '/staff' : '/');
+      router.replace(next && next.startsWith('/') && !next.startsWith('//') ? next : r.user.role === 'staff' ? '/staff' : '/');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not reach the server');
     } finally { setBusy(false); }
@@ -36,10 +40,15 @@ export default function LoginPage() {
         <input id="email" type="text" autoComplete="username" required className="input mb-4" value={email} onChange={(e) => setEmail(e.target.value)} />
         <label className="label" htmlFor="password">Password</label>
         <input id="password" type="password" autoComplete="current-password" required className="input mb-5" value={password} onChange={(e) => setPassword(e.target.value)} />
+        {expired && !error && <p role="status" className="mb-3 rounded-xl border border-amber-300/30 bg-amber-400/10 px-3 py-2 text-sm text-amber-50">Your session has ended. Please sign in again.</p>}
         {error && <p role="alert" className="mb-3 rounded-xl border border-red-300/30 bg-red-500/10 px-3 py-2 text-sm text-red-100">{error}</p>}
         <button className="btn-primary w-full" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
         <p className="mt-5 text-center text-[10px] uppercase tracking-[0.14em] text-sand/80">Official Meta APIs only · rates published exactly as entered</p>
       </form>
     </main>
   );
+}
+
+export default function LoginPage() {
+  return <Suspense fallback={null}><LoginForm /></Suspense>;
 }

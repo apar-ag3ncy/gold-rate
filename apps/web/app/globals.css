@@ -32,6 +32,9 @@ body {
   background-attachment: scroll;
 }
 ::selection { background: rgba(198, 141, 97, 0.45); }
+a:focus-visible, summary:focus-visible, [role="switch"]:focus-visible, [role="button"]:focus-visible { outline: 2px solid var(--color-copper); outline-offset: 3px; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+.sr-only-focusable:not(:focus) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 input[type="date"]::-webkit-calendar-picker-indicator, input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.9) sepia(0.3); opacity: 0.8; }
 select option { background: #0b3a2d; color: #f7f3ec; }
 
@@ -50,7 +53,7 @@ select option { background: #0b3a2d; color: #f7f3ec; }
 @utility eyebrow { @apply font-sans text-[10.5px] font-semibold uppercase tracking-[0.22em] text-copper; }
 @utility card-title { @apply eyebrow; }
 @utility page-title { @apply font-serif text-4xl font-light tracking-tight text-cream sm:text-5xl; }
-@utility hint { @apply text-xs text-sand; }
+@utility hint { @apply text-xs text-cream-200/65; }
 @utility text-muted { @apply text-cream-200/70; }
 @utility text-faint { @apply text-sand; }
 @utility text-copper { color: var(--color-copper); }

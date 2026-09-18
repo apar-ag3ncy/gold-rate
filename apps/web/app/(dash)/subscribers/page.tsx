@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { Alert } from '@/components/Alert';
+import { CardSkeleton, EmptyState } from '@/components/ui';
 
 type Sub = { id: string; phoneMasked: string; name?: string; status: 'active' | 'opted_out' | 'invalid'; optInSource: string; optInAt: string; optOutAt?: string; lastDeliveryStatus?: string; lastDeliveryAt?: string; lastError?: string };
 type Resp = { counts: { active: number; opted_out: number; invalid: number; total: number }; items: Sub[] };
@@ -88,7 +89,7 @@ export default function SubscribersPage() {
       )}
 
       <section className="card p-0 sm:p-0">
-        {!data ? <p className="p-4 text-sand">Loading…</p> : data.items.length === 0 ? <p className="p-6 text-center text-sand">No subscribers{filter ? ` with status "${filter}"` : ' yet'}.</p> : (
+        {!data ? <div className="p-4"><CardSkeleton lines={5} /></div> : data.items.length === 0 ? <div className="p-4"><EmptyState title={`No subscribers${filter ? ` with status "${filter.replace('_', ' ')}"` : ' yet'}`} hint="Add customers who opted in, or import a CSV." /></div> : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-cream-200/15 bg-cream/[0.04] text-[11px] uppercase tracking-wider text-sand">

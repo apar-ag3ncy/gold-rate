@@ -5,14 +5,17 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 
 type Me = { email: string; name: string; role: 'admin' | 'staff' | 'viewer' };
-const nav = [
+const nav: { href: string; label: string; exact?: boolean; admin?: boolean }[] = [
   { href: '/', label: 'Dashboard' },
   { href: '/rates', label: 'Enter Rate' },
   { href: '/history', label: 'History' },
+  { href: '/deliveries', label: 'Deliveries' },
   { href: '/alerts', label: 'Alerts' },
   { href: '/subscribers', label: 'Subscribers' },
   { href: '/settings', label: 'Settings', exact: true },
   { href: '/settings/connections', label: 'Connections' },
+  { href: '/users', label: 'Users', admin: true },
+  { href: '/audit', label: 'Audit', admin: true },
 ];
 
 /** Floating cream pill header – same treatment as chhedajewellers.com */
@@ -37,6 +40,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen">
+      <a href="#main" className="sr-only-focusable fixed left-2 top-2 z-50 rounded-full bg-cream px-3 py-1 text-xs text-emerald-900">Skip to content</a>
       <header className="sticky top-0 z-30 px-3 pt-3 sm:px-4 sm:pt-4">
         <div className="mx-auto max-w-6xl rounded-[28px] border border-emerald-900/10 bg-cream/95 px-3 py-2 text-emerald-900 shadow-[0_20px_50px_-25px_rgba(0,0,0,.7)] backdrop-blur-xl sm:rounded-full sm:px-4">
           <div className="flex items-center justify-between gap-3">
@@ -48,8 +52,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
               </span>
             </Link>
             <nav className="hidden items-center gap-1 lg:flex">
-              {nav.map((n) => {
-                const active = n.href === '/' || (n as any).exact ? path === n.href : path.startsWith(n.href);
+              {nav.filter((n) => !n.admin || me?.role === 'admin').map((n) => {
+                const active = n.href === '/' || n.exact ? path === n.href : path.startsWith(n.href);
                 return (
                   <Link key={n.href} href={n.href} aria-current={active ? 'page' : undefined}
                     className={`whitespace-nowrap rounded-full px-3.5 py-1.5 font-sans text-[10.5px] font-semibold uppercase tracking-[0.18em] transition ${active ? 'bg-emerald-900 text-cream shadow-sm' : 'text-emerald-900/75 hover:bg-emerald-900/8 hover:text-emerald-900'}`}>
@@ -66,8 +70,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <nav className="mt-2 flex items-center gap-1 overflow-x-auto pb-1 lg:hidden">
-            {nav.map((n) => {
-              const active = n.href === '/' || (n as any).exact ? path === n.href : path.startsWith(n.href);
+            {nav.filter((n) => !n.admin || me?.role === 'admin').map((n) => {
+              const active = n.href === '/' || n.exact ? path === n.href : path.startsWith(n.href);
               return (
                 <Link key={n.href} href={n.href} aria-current={active ? 'page' : undefined}
                   className={`whitespace-nowrap rounded-full px-3.5 py-1.5 font-sans text-[10.5px] font-semibold uppercase tracking-[0.18em] transition ${active ? 'bg-emerald-900 text-cream shadow-sm' : 'text-emerald-900/75 hover:bg-emerald-900/8'}`}>
@@ -78,7 +82,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:py-10 rise">{children}</main>
+      <main id="main" className="mx-auto max-w-6xl px-4 py-8 sm:py-10 rise">{children}</main>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { StatusBadge } from './StatusBadge';
+import { fmtTime } from '@/lib/api';
 
 export type Delivery = {
   id: string; date: string; channel: string; trigger: string; status: string;
@@ -30,10 +31,10 @@ export function DeliveryList({ items }: { items: Delivery[] }) {
           <div className="min-w-0 flex-1">
             <p className="font-medium">{channelLabels[d.channel] ?? d.channel} <span className="text-sand/80">· {triggerLabels[d.trigger] ?? d.trigger}</span></p>
             <p className="hint truncate">
-              {new Date(d.createdAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })} IST
+              {fmtTime(d.createdAt)}
               {d.recipient && ` · to ${d.recipient}`}{d.dryRun && ' · DRY RUN (logged only)'}
               {d.stats && ` · ${d.stats.sent}/${d.stats.total} sent, ${d.stats.failed} failed`}
-              {d.postedBy && ` · posted by ${d.postedBy} at ${new Date(d.postedAt!).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })}`}
+              {d.postedBy && ` · posted by ${d.postedBy} at ${fmtTime(d.postedAt)}`}
               {d.status === 'pending_manual' && !d.postedBy && ' · waiting for staff'}{d.reminderSentAt && d.status === 'pending_manual' && ' · reminder sent'}
             </p>
             {d.error && <p className="text-xs text-red-300">{d.error}</p>}

@@ -54,5 +54,6 @@ export async function login(app: any, email: string, password = 'Str0ngPassw0rd'
     put: (u: string, b?: object) => agent.put(u).set(h).send(b),
     post: (u: string, b?: object) => agent.post(u).set(h).send(b),
     delete: (u: string) => agent.delete(u).set(h),
+    patch: (u: string, b?: object) => agent.patch(u).set(h).send(b),
   };
 }

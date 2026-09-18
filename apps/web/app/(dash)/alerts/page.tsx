@@ -1,13 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { api, fmtDate } from '@/lib/api';
+import { api, fmtDate, fmtDateTime } from '@/lib/api';
 import { Alert } from '@/components/Alert';
+import { CardSkeleton, EmptyState } from '@/components/ui';
 
 type Notif = { channel: string; to?: string; status: string; error?: string; at: string };
 type AlertItem = { id: string; type: string; severity: string; message: string; date?: string; status: 'open' | 'acked'; ackBy?: string; ackAt?: string; createdAt: string; notifiedAt?: string; notifications: Notif[] };
 const TYPES = ['rate_missing', 'send_failed', 'partial_send', 'token_expiring', 'manual_pending', 'health_check', 'day_skipped'];
 const sev: Record<string, string> = { critical: 'bg-red-400/15 text-red-100 ring-red-300/30', warning: 'bg-amber-400/15 text-amber-100 ring-amber-300/30', info: 'bg-cream/10 text-cream-200 ring-cream-200/20' };
-const when = (d?: string) => d ? new Date(d).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : '';
+const when = (d?: string) => d ? fmtDateTime(d) : '';
 
 export default function AlertsPage() {
   const [items, setItems] = useState<AlertItem[] | null>(null);
@@ -42,7 +43,7 @@ export default function AlertsPage() {
       </div>
       {msg && <Alert {...msg} />}
       <section className="card p-0 sm:p-0">
-        {!items ? <p className="p-4 text-sand">Loading…</p> : items.length === 0 ? <p className="p-6 text-center text-sand">No alerts match.</p> : (
+        {!items ? <div className="p-4"><CardSkeleton lines={4} /></div> : items.length === 0 ? <div className="p-4"><EmptyState title="No alerts match these filters" hint="Alerts appear when a send fails, a rate is missing or a token is about to expire." /></div> : (
           <ul className="divide-y divide-cream-200/10">
             {items.map((a) => (
               <li key={a.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start">
@@ -52,7 +53,7 @@ export default function AlertsPage() {
                     {a.type.replace(/_/g, ' ')}{a.date && <span className="font-normal text-sand">· {fmtDate(a.date)}</span>}
                   </p>
                   <p className="mt-1 text-sm text-cream-200/90">{a.message}</p>
-                  <p className="hint mt-1">{when(a.createdAt)} IST{a.status === 'acked' && ` · acknowledged by ${a.ackBy} ${when(a.ackAt)}`}
+                  <p className="hint mt-1">{when(a.createdAt)}{a.status === 'acked' && ` · acknowledged by ${a.ackBy} ${when(a.ackAt)}`}
                     {a.notifications.length > 0 && <> · notified: {a.notifications.map((n) => `${n.channel} ${n.status}${n.to ? ` (${n.to})` : ''}`).join(', ')}</>}</p>
                 </div>
                 {a.status === 'open' && me && me.role !== 'viewer' && <button className="btn-secondary btn-sm self-start" onClick={() => ack(a.id)}>Acknowledge</button>}

@@ -2,8 +2,9 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { addDays, istDate } from '@chheda/shared';
-import { api, fmtDate, inr } from '@/lib/api';
+import { api, fmtDate, perGram } from '@/lib/api';
 import { StatusBadge } from '@/components/StatusBadge';
+import { CardSkeleton, EmptyState, ErrorState } from '@/components/ui';
 import type { Rate } from '@/components/RateCard';
 
 export default function HistoryPage() {
@@ -37,21 +38,21 @@ export default function HistoryPage() {
         </div>
       </div>
       <section className="card p-0 sm:p-0">
-        {err && <p className="p-4 text-red-300">{err}</p>}
-        {!items ? <p className="p-4 text-sand">Loading…</p> : items.length === 0 ? <p className="p-6 text-center text-sand">No rates in this range.</p> : (
+        {err && <div className="p-4"><ErrorState message={err} /></div>}
+        {!items ? <div className="p-4"><CardSkeleton lines={5} /></div> : items.length === 0 ? <div className="p-4"><EmptyState title="No rates in this range" /></div> : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-cream-200/15 bg-cream/[0.05] text-[11px] uppercase tracking-wider text-sand">
-                <tr><th className="px-4 py-3">Date</th><th className="pr-3">24K /g</th><th className="pr-3">22K /g</th><th className="pr-3">18K /g</th><th className="pr-3">Other</th><th className="pr-3">Status</th><th className="pr-3">Entered / approved by</th><th /></tr>
+                <tr><th className="px-4 py-3">Date</th><th className="pr-3">24K</th><th className="pr-3">22K</th><th className="pr-3">18K</th><th className="pr-3">Other</th><th className="pr-3">Status</th><th className="pr-3">Entered / approved by</th><th /></tr>
               </thead>
               <tbody>
                 {items.map((r) => (
                   <tr key={r.date} className="border-b border-cream-200/10 transition hover:bg-cream/[0.05]">
                     <td className="whitespace-nowrap px-4 py-2.5 font-medium">{fmtDate(r.date)}</td>
-                    <td className="kbd-money pr-3 font-bold text-copper">{inr(r.k24)}</td>
-                    <td className="kbd-money pr-3">{inr(r.k22)}</td>
-                    <td className="kbd-money pr-3">{inr(r.k18)}</td>
-                    <td className="pr-3 text-xs text-cream-200/70">{r.extraPurities.map((p) => `${p.label} ${inr(p.value)}`).join(', ') || '–'}</td>
+                    <td className="kbd-money pr-3 font-bold text-copper">{perGram(r.k24)}</td>
+                    <td className="kbd-money pr-3">{perGram(r.k22)}</td>
+                    <td className="kbd-money pr-3">{perGram(r.k18)}</td>
+                    <td className="pr-3 text-xs text-cream-200/70">{r.extraPurities.map((p) => `${p.label} ${perGram(p.value)}`).join(', ') || '–'}</td>
                     <td className="pr-3"><StatusBadge status={r.status} short /></td>
                     <td className="pr-3 text-xs text-cream-200/70">{r.enteredBy}{r.approvedBy && ` / ${r.approvedBy}`}</td>
                     <td className="pr-4"><Link className="btn-secondary btn-sm" href={`/rates?date=${r.date}`}>Open</Link></td>

@@ -20,6 +20,7 @@ import { integrationsRouter } from './routes/integrations';
 import { subscribersRouter } from './routes/subscribers';
 import { webhooksRouter } from './routes/webhooks';
 import { staffRouter } from './routes/staff';
+import { usersRouter } from './routes/users';
 import { setAlertNotifier } from './services/alerts';
 import { setWebhookStorage } from './services/webhooks';
 import { createStorage } from './services/storage';
@@ -66,6 +67,7 @@ export function createApp(cfg: Config) {
   api.use('/integrations', integrationsRouter(cfg));
   api.use('/subscribers', subscribersRouter());
   api.use('/staff', staffRouter(cfg));
+  api.use('/users', usersRouter());
   api.use((_req, _res, next) => next(new HttpError(404, 'Route not found')));
   app.use('/api/v1', api);
 

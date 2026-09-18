@@ -8,7 +8,7 @@
 | 4A Meta publishers, webhooks, integrations, subscribers | ✅ done (17 Sep 2026) | 41 shared + 78 API tests passing (all Meta HTTP mocked); typecheck + web build OK; DRY_RUN stays default |
 | 4B Staff share PWA + admin alert notifications | ✅ done (18 Sep 2026) | 42 shared + 91 API tests passing; typecheck + web build OK; staff flow verified in browser |
 | 5 RATE keyword auto-reply | ✅ done (18 Sep 2026) | 47 shared + 106 API tests passing; typecheck + web build OK |
-| 6 Dashboard | not started | |
+| 6 Dashboard completion | ✅ done (18 Sep 2026) | 47 shared + 115 API tests passing; typecheck + web build OK; all screens checked in browser |
 | 7 Hardening + deploy | not started | |
 
 ## Decisions
@@ -208,6 +208,34 @@ limit, not-ready text with validation); "Keyword replies" table on the dashboard
 case/punctuation/Hinglish matches and non-matches; approved → exact values, not approved → no numbers anywhere; window open vs closed
 (free-form vs template; Instagram skip); per-sender limit + daily reset; duplicate message ids; feature off; JOIN/STOP unaffected and
 no auto opt-in; DRY_RUN; Meta failure → alert; signed HTTP webhook processed asynchronously; log endpoint masking; settings validation.
+
+## Phase 6 – what was built
+**Home** (`apps/web/app/(dash)/page.tsx`) – answers "is today handled?": status banner (rate + day status + reason, today's values),
+cards for next send (live countdown), automation (inline toggle, admin), Instagram + WhatsApp (connection, token days left, subscriber
+count), unacknowledged alerts; today's deliveries per channel with time/error and **Retry** (opens the Send Now dialog – already
+successful channels are skipped); staff share tasks with who/when; **Send now** confirmation dialog built from `GET /send/plan`
+(exact rate values, every channel: will send / already sent / off / staff task, opted-in customer count, DRY RUN flag). Auto-refresh
+every 30 s, paused while the tab is hidden.
+
+**Delivery log** `/deliveries` – `GET /deliveries/log` (date range, channel, status, trigger, pagination) with expandable rows
+(Meta id, error + code, attempts, posted-by, WhatsApp status, image + caption), **Export CSV** (`GET /deliveries/export.csv`, same
+filters, ≤ 5,000 rows, quoted, BOM), keyword-reply section moved here from the home page.
+
+**Alerts** – filters, acknowledge one / all, who + when (from Phase 4B; loading/empty states unified).
+**Audit** `/audit` (admin) – `GET /audit?user&action&entity&from&to&page&limit`, expandable before/after diff, secrets redacted server-side.
+**Users** `/users` (admin) – `GET/POST /users`, `PATCH /users/:id` (role, disable/enable), `POST /users/:id/reset-password`,
+`POST /users/:id/logout`. Generated first/reset passwords are shown once in a dialog and never stored; disabling ends sessions;
+admins cannot disable themselves or drop their own admin role; password hashes never leave the server.
+
+**Quality pass** – shared `components/ui.tsx` (skeletons, empty/error states, accessible `<dialog>` modal, pager, page header,
+AdminOnly gate); friendly API errors (no raw JSON), session expiry → `/login?expired=1&next=…` with a message; `not-found.tsx` +
+`error.tsx`; visible focus rings, skip link, reduced-motion; all times through `fmtDateTime/fmtTime` with "IST", money via `perGram`
+("₹11,250/g"); mobile: pill nav wraps/scrolls, tables scroll horizontally, banner tiles stack; contrast checked (cream/copper on
+emerald ≥ 4.5:1). Admin-only nav items hidden for other roles (the API enforces 403 regardless).
+
+**Tests** – `apps/api/test/admin.test.ts`: users CRUD + permissions (403 for staff/viewer, 401 anonymous, self-disable blocked,
+generated passwords pass the strength rule and log in, reset + force-logout end sessions, no hashes/passwords in responses or audit),
+delivery log filters/pagination + CSV quoting, send plan, audit filters/pagination/redaction.
 
 ## How to run / test
 ```bash

@@ -1,4 +1,4 @@
-import { fmtDate, inr } from '@/lib/api';
+import { fmtDate, fmtDateTime, inr } from '@/lib/api';
 import { StatusBadge } from './StatusBadge';
 
 export type Rate = {
@@ -34,7 +34,7 @@ export function RateCard({ title, date, rate, action }: { title: string; date: s
             </div>
           )}
           <p className="hint mt-3">
-            Updated {new Date(rate.updatedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })} · {rate.enteredBy}
+            Updated {fmtDateTime(rate.updatedAt)} · {rate.enteredBy}
             {rate.approvedBy && <> · approved by <b>{rate.approvedBy}</b></>}
           </p>
         </>

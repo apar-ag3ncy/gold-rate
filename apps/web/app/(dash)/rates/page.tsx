@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { addDays, buildCaption, DEFAULT_CAPTION_TEMPLATE, istDate } from '@chheda/shared';
 import { api, ApiError, fmtDate, inr } from '@/lib/api';
 import { Alert } from '@/components/Alert';
+import { CardSkeleton } from '@/components/ui';
 import { StatusBadge } from '@/components/StatusBadge';
 import type { Rate } from '@/components/RateCard';
 import type { Delivery } from '@/components/DeliveryList';
@@ -327,5 +328,5 @@ function RateForm() {
 }
 
 export default function RatesPage() {
-  return <Suspense fallback={<p>Loading…</p>}><RateForm /></Suspense>;
+  return <Suspense fallback={<div className="grid gap-6 lg:grid-cols-[1fr_340px]"><CardSkeleton lines={8} /><CardSkeleton lines={4} /></div>}><RateForm /></Suspense>;
 }

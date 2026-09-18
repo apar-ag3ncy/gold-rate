@@ -1,0 +1,26 @@
+# /etc/systemd/system/chheda-worker.service
+[Unit]
+Description=Chheda Gold Rate – scheduler worker
+After=network-online.target chheda-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=chheda
+WorkingDirectory=/opt/chheda/app
+EnvironmentFile=/opt/chheda/app/.env
+Environment=NODE_ENV=production
+ExecStartPre=/usr/bin/node apps/api/scripts/check-env.mjs /opt/chheda/app/.env
+ExecStart=/usr/bin/npx tsx apps/worker/src/index.ts
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/chheda/worker.log
+StandardError=append:/var/log/chheda/worker.log
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/chheda/app/uploads /var/log/chheda
+
+[Install]
+WantedBy=multi-user.target

@@ -1,4 +1,6 @@
+import crypto from 'node:crypto';
 import express, { type ErrorRequestHandler } from 'express';
+import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import pinoHttp from 'pino-http';
@@ -25,6 +27,9 @@ import { setAlertNotifier } from './services/alerts';
 import { setWebhookStorage } from './services/webhooks';
 import { createStorage } from './services/storage';
 
+export let sentryCapture: ((err: unknown, ctx?: Record<string, unknown>) => void) | null = null;
+export function setSentryCapture(fn: typeof sentryCapture) { sentryCapture = fn; }
+
 export function createApp(cfg: Config) {
   const app = express();
   const storage = createStorage(cfg);
@@ -33,7 +38,12 @@ export function createApp(cfg: Config) {
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use(helmet());
-  app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === '/health' } }));
+  // request id: reuse an upstream id (Nginx / Vercel) or mint one; echoed back so support tickets can quote it
+  app.use(pinoHttp({
+    logger, autoLogging: { ignore: (req) => req.url === '/health' },
+    genReqId: (req, res) => { const id = (req.headers['x-request-id'] as string) || crypto.randomUUID(); res.setHeader('x-request-id', id); return id; },
+    customProps: (req) => ({ user: (req as any).user?.email }),
+  }));
   // keep the raw bytes so webhook signatures can be verified
   app.use(express.json({ limit: '100kb', verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
   app.use(cookieParser());
@@ -51,7 +61,7 @@ export function createApp(cfg: Config) {
   }
 
   // Meta webhooks: signature-verified, no session / CSRF (Meta cannot send either)
-  app.use('/api/v1/webhooks', webhooksRouter(cfg));
+  app.use('/api/v1/webhooks', rateLimit({ windowMs: 60_000, limit: cfg.NODE_ENV === 'test' ? 10_000 : 600, standardHeaders: true, legacyHeaders: false }), webhooksRouter(cfg));
 
   const api = express.Router();
   api.use(csrfGuard(cfg.WEB_ORIGIN));
@@ -80,7 +90,8 @@ export function createApp(cfg: Config) {
     if (err?.type === 'entity.parse.failed') { res.status(400).json({ error: 'Invalid JSON body' }); return; }
     if (err?.code === 11000) { res.status(409).json({ error: 'Duplicate record' }); return; }
     req.log?.error({ err }, 'unhandled error');
-    res.status(500).json({ error: 'Something went wrong. It has been logged.' });
+    sentryCapture?.(err, { requestId: req.id });
+    res.status(500).json({ error: 'Something went wrong. It has been logged.', requestId: req.id });
   };
   app.use(onError);
   return app;

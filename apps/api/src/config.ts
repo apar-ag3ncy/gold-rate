@@ -10,7 +10,11 @@ const schema = z.object({
   DRY_RUN: z.string().default('true').transform((v) => v !== 'false'),
 
   // ---- media storage (Phase 2) ----
-  STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
+  STORAGE_DRIVER: z.enum(['local', 's3', 'cloudinary']).default('local'),
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
+  CLOUDINARY_FOLDER: z.string().default('chheda'),
   /** Local driver: directory where JPEGs are written. Served by the API at /media. */
   MEDIA_DIR: z.string().default(path.resolve(process.cwd(), 'uploads')),
   /** Public base URL for the API (used to build image URLs with the local driver). */
@@ -44,6 +48,11 @@ const schema = z.object({
   SMTP_FROM: z.string().optional(),
   /** Public URL of the dashboard – used in push notifications and alert emails. */
   WEB_PUBLIC_URL: z.string().optional(),
+
+  // ---- Observability (Phase 7) ----
+  SENTRY_DSN: z.string().optional(),
+  APP_VERSION: z.string().optional(),        // release tag (git sha) – set by the deploy script / CI
+  WORKER_PORT: z.coerce.number().int().default(4100),
 });
 
 export type Config = z.infer<typeof schema> & { MEDIA_BASE_URL: string; WEB_PUBLIC_URL: string };
@@ -55,18 +64,24 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error(`Invalid environment configuration:\n${msg}`);
   }
   const cfg = parsed.data;
-  if (cfg.NODE_ENV === 'production' && !cfg.WEB_ORIGIN.startsWith('https://')) {
-    throw new Error('WEB_ORIGIN must be https in production');
-  }
   if (cfg.STORAGE_DRIVER === 's3' && (!cfg.S3_BUCKET || !cfg.S3_REGION)) {
     throw new Error('S3_BUCKET and S3_REGION are required when STORAGE_DRIVER=s3');
   }
-  if (cfg.NODE_ENV === 'production' && !cfg.ENCRYPTION_KEY) throw new Error('ENCRYPTION_KEY is required in production');
+  const problems: string[] = [];
+  if (cfg.NODE_ENV === 'production') {
+    if (!cfg.ENCRYPTION_KEY) problems.push('ENCRYPTION_KEY is required (openssl rand -base64 32)');
+    if (!cfg.WEB_ORIGIN.startsWith('https://')) problems.push('WEB_ORIGIN must be https');
+    if (cfg.MEDIA_BASE_URL && !cfg.MEDIA_BASE_URL.startsWith('https://')) problems.push('MEDIA_BASE_URL must be https (Instagram fetches images from it)');
+    if (cfg.STORAGE_DRIVER === 'local') problems.push('STORAGE_DRIVER=local is not suitable for production – use cloudinary');
+    if (!cfg.SENTRY_DSN) console.warn('WARN: SENTRY_DSN is not set – errors will only be in the logs');
+    if (!cfg.VAPID_PUBLIC_KEY) console.warn('WARN: VAPID keys not set – staff push notifications are disabled');
+    if (!cfg.SMTP_HOST) console.warn('WARN: SMTP_HOST not set – admin alert emails are disabled');
+  }
+  if (cfg.STORAGE_DRIVER === 'cloudinary' && (!cfg.CLOUDINARY_CLOUD_NAME || !cfg.CLOUDINARY_API_KEY || !cfg.CLOUDINARY_API_SECRET)) problems.push('STORAGE_DRIVER=cloudinary needs CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET');
+  if (cfg.ENCRYPTION_KEY && Buffer.from(cfg.ENCRYPTION_KEY, 'base64').length !== 32) problems.push('ENCRYPTION_KEY must be 32 bytes, base64 (openssl rand -base64 32)');
+  if (problems.length) throw new Error(`Invalid environment configuration:\n- ${problems.join('\n- ')}`);
   if (!cfg.DRY_RUN && (!cfg.META_APP_SECRET || !cfg.META_WEBHOOK_VERIFY_TOKEN)) {
     throw new Error('DRY_RUN=false needs META_APP_SECRET and META_WEBHOOK_VERIFY_TOKEN');
-  }
-  if (cfg.NODE_ENV === 'production' && cfg.STORAGE_DRIVER === 'local' && !cfg.MEDIA_BASE_URL) {
-    throw new Error('MEDIA_BASE_URL is required in production (Instagram must be able to fetch the image)');
   }
   return { ...cfg, MEDIA_BASE_URL: (cfg.MEDIA_BASE_URL ?? `http://localhost:${cfg.API_PORT}`).replace(/\/+$/, ''), WEB_PUBLIC_URL: (cfg.WEB_PUBLIC_URL ?? cfg.WEB_ORIGIN).replace(/\/+$/, '') };
 }

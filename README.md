@@ -3,7 +3,9 @@
 Admin enters the daily gold rate → approves → the system sends it automatically at the scheduled time
 (Instagram Feed/Story + WhatsApp opted-in customers; staff 1-tap share for Instagram Broadcast & WhatsApp Channel).
 
-**Current status: Phase 4A done** (login, rate entry, validation, approval, branded image preview, caption template, Test Send, scheduler worker with alerts, official Instagram + WhatsApp publishers, webhooks, encrypted subscribers, Connections page). Publishing stays in DRY_RUN until Meta credentials are entered – see the go-live checklist in `docs/PROGRESS.md`. See `docs/PROGRESS.md`.
+**Current status: all 7 phases done** – see `docs/DEPLOYMENT.md`, `docs/GO-LIVE.md`, `docs/RUNBOOK.md`.
+
+Features: login + roles, rate entry with blocking validation and approval, branded image preview, caption + WhatsApp templates, Test Send, scheduler worker with alerts, official Instagram + WhatsApp publishers, webhooks, encrypted subscribers, staff share PWA, RATE keyword auto-reply, full admin dashboard. Publishing stays in DRY_RUN until Meta credentials are entered.
 
 ## Requirements
 - Node.js 20+

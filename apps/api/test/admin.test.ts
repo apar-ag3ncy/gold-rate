@@ -112,7 +112,7 @@ describe('delivery log, CSV export, send plan', () => {
     const lines = r.text.replace(/^﻿/, '').split('\n');
     expect(lines[0]).toBe('date,channel,trigger,status,createdAt,attempts,externalId,recipient,postedBy,postedAt,metaErrorCode,error,dryRun');
     expect(lines).toHaveLength(3);
-    expect(lines.find((l) => l.includes('ig_story'))).toContain('"Container ""expired"", said Meta"');
+    expect(lines.find((l: string) => l.includes('ig_story'))).toContain('"Container ""expired"", said Meta"');
     expect(r.text).not.toContain('h1');
   });
   it('send plan explains what Send Now would do', async () => {

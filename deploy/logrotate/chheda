@@ -1,0 +1,11 @@
+# /etc/logrotate.d/chheda
+/var/log/chheda/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    create 0640 chheda chheda
+}

@@ -9,7 +9,7 @@
 | 4B Staff share PWA + admin alert notifications | ✅ done (18 Sep 2026) | 42 shared + 91 API tests passing; typecheck + web build OK; staff flow verified in browser |
 | 5 RATE keyword auto-reply | ✅ done (18 Sep 2026) | 47 shared + 106 API tests passing; typecheck + web build OK |
 | 6 Dashboard completion | ✅ done (18 Sep 2026) | 47 shared + 115 API tests passing; typecheck + web build OK; all screens checked in browser |
-| 7 Hardening + deploy | not started | |
+| 7 Hardening, deployment, go-live readiness | ✅ done (18 Sep 2026) | 47 shared + 122 API tests; typecheck + web build OK; deploy files, DEPLOYMENT/RUNBOOK/GO-LIVE docs |
 
 ## Decisions
 - Manual rate entry only (per gram); no gold-rate API.
@@ -237,6 +237,44 @@ emerald ≥ 4.5:1). Admin-only nav items hidden for other roles (the API enforce
 generated passwords pass the strength rule and log in, reset + force-logout end sessions, no hashes/passwords in responses or audit),
 delivery log filters/pagination + CSV quoting, send plan, audit filters/pagination/redaction.
 
+## Phase 7 – what was built
+**Security review (SPEC §9) – changes made**
+- Secrets → browser/logs: pino `redact` extended (cookies, set-cookie, x-hub-signature-256, access/encrypted tokens, phoneEnc, private
+  keys, generated passwords); Sentry `beforeSend` drops cookies/headers/body and scrubs phone numbers + tokens; audit `before/after`
+  redacts token/secret/password/hash keys (Phase 6). Integration tokens `select:false` + AES-256-GCM; phone numbers encrypted + masked.
+- Auth/roles/validation: every `/api/v1` router uses `requireAuth`/`requireRole` and Zod `parse()`; new `hardening.test.ts` asserts
+  every collection endpoint is 401 anonymously and (Phase 6) 403 for non-admins on admin routes.
+- Sessions: **new `POST /auth/change-password`** (verifies current, strength rule, ends every other session); disable/reset/force-logout
+  already delete sessions (Phase 6).
+- Rate limits: login (20/15 min), preview (30/min), test send (10/10 min), Send Now (5/10 min), integration test (10/min),
+  **webhooks (600/min per IP, new)**; Nginx adds `limit_req` zones on top.
+- Webhooks: HMAC signature verified on the raw body before parsing; verify-token on GET; CSRF header + Origin check on the cookie API.
+- Headers: helmet on the API; Next now sends CSP, HSTS, Permissions-Policy, X-Frame-Options DENY, nosniff, Referrer-Policy; Nginx repeats HSTS/nosniff.
+- Request ids: `x-request-id` accepted from Nginx/Vercel or generated, echoed on every response, included in 500 bodies and logs.
+- Config fails fast: `loadConfig` lists *all* problems (https origins, encryption key length, Cloudinary keys, Meta secrets when
+  DRY_RUN=false, storage=local in production) + `apps/api/scripts/check-env.mjs` (used by `ExecStartPre` in systemd and `deploy.sh`).
+- `npm audit`: **nodemailer** upgraded 6 → 10 (fixes the high), **vitest** 2 → 4 (dev-only chain: vite/esbuild/@vitest/mocker).
+  Remaining: `next`'s bundled `postcss` (moderate/high, build-time CSS tooling on our own CSS – not reachable at runtime; fix = Next 16
+  upgrade, deferred as a breaking change). No forbidden libraries (no WhatsApp Web / Baileys / instagram-private-api / browser automation).
+- Dependencies added (agreed stack): `@sentry/node` (api, worker), `@sentry/nextjs` (web).
+
+**Cloudinary storage** – `services/storage/cloudinary.ts`: signed REST uploads (sha1 signature, no SDK), `public_id` =
+`<folder>/creative/YYYY-MM/<file>`, `overwrite=false` (existing asset returned, never replaced), CDN `secure_url` returned, `exists()`
+via the Admin API. `STORAGE_DRIVER=cloudinary` + `CLOUDINARY_*` env; local disk stays the dev default. Tested with mocked HTTP.
+
+**Observability** – `lib/sentry.ts` (API + worker, DSN from env, release = `APP_VERSION`, PII scrubbing), `instrumentation.ts` +
+`instrumentation-client.ts` (web, `NEXT_PUBLIC_SENTRY_DSN`); worker HTTP server on `WORKER_PORT` with `/health` and `/ready`
+(DB up, tick in the last 3 min, tokens valid in live mode → 503 otherwise); structured pino logs with request id; logrotate config.
+
+**Deployment** – `apps/api/Dockerfile`, `apps/worker/Dockerfile`, `docker-compose.prod.yml`; `deploy/systemd/*.service` (hardened
+units, env check before start), `deploy/nginx/*` (TLS via certbot, proxy snippet, webhook + API rate-limit zones, gzip, long read timeout
+for Instagram polling), `deploy/logrotate/chheda`, `deploy/backup/mongodump.sh` (nightly, 30-day retention, restore recipe),
+`deploy/deploy.sh` (pull → install → env check → restart → health check → **auto-rollback**), `.github/workflows/ci.yml`
+(install, typecheck, test, build, runtime audit). `docs/DEPLOYMENT.md` covers VPS, Atlas, Cloudinary, Vercel, Meta callbacks, DNS,
+updates, rollback, monitoring and the manual smoke test.
+
+**Docs** – `docs/RUNBOOK.md` (owner-facing), `docs/GO-LIVE.md` (pre-flight + 4-step rollout: dry-run trial → Instagram → small WhatsApp group → all).
+
 ## How to run / test
 ```bash
 npm install
@@ -247,6 +285,7 @@ npm run dev:api       # needs MongoDB (docker compose up -d) and .env; images la
 npm run dev:web
 npm run dev:worker   # scheduler (Phase 3)
 npm run dev:mongo    # optional: in-memory MongoDB when Docker is not available
+node apps/api/scripts/check-env.mjs .env   # fail-fast env check (also run by systemd/deploy.sh)
 ```
 Browser: log in → Enter Rate → save a rate → **Preview image** → **Copy caption** → **Test Send** (confirm) → Dashboard shows the test delivery.
 Settings → edit the caption template (try an unknown placeholder to see it blocked) → Save.

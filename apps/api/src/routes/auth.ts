@@ -2,7 +2,9 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import type { Config } from '../config';
-import { createSession, destroySession, verifyLogin, SESSION_COOKIE } from '../lib/auth';
+import { createSession, destroySession, hashPassword, validatePasswordStrength, verifyLogin, SESSION_COOKIE } from '../lib/auth';
+import { Session, User } from '../models';
+import { unprocessable } from '../lib/errors';
 import { HttpError, unauthorized } from '../lib/errors';
 import { requireAuth } from '../middleware/auth';
 import { parse } from '../middleware/validate';
@@ -39,5 +41,21 @@ export function authRouter(cfg: Config) {
   });
 
   r.get('/me', requireAuth, (req, res) => res.json({ user: req.user }));
+
+  /** Change own password: verifies the current one, enforces strength, ends every OTHER session. */
+  r.post('/change-password', requireAuth, limiter, async (req, res) => {
+    const { currentPassword, newPassword } = parse(z.object({ currentPassword: z.string().min(1, 'Required').max(200), newPassword: z.string().min(1, 'Required').max(200) }), req.body);
+    const weak = validatePasswordStrength(newPassword);
+    if (weak) throw unprocessable(weak, { fields: { newPassword: weak } });
+    if (newPassword === currentPassword) throw unprocessable('Choose a different password', { fields: { newPassword: 'Same as current' } });
+    const check = await verifyLogin(req.user!.email, currentPassword);
+    if (!check.ok) throw unauthorized('Current password is incorrect');
+    await User.updateOne({ _id: req.user!.id }, { passwordHash: await hashPassword(newPassword), failedLogins: 0, lockedUntil: undefined });
+    const token = req.cookies?.[SESSION_COOKIE];
+    const { createHash } = await import('node:crypto');
+    await Session.deleteMany({ userId: req.user!.id, ...(token && { tokenHash: { $ne: createHash('sha256').update(token).digest('hex') } }) });
+    await AuditLog.create({ action: 'password_change', entity: 'user', entityId: req.user!.id, userId: req.user!.id, userEmail: req.user!.email, ip: req.ip });
+    res.json({ ok: true });
+  });
   return r;
 }

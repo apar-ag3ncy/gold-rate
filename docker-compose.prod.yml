@@ -1,0 +1,19 @@
+# Production on one VPS with Docker (alternative to the systemd units in deploy/systemd).
+# Nginx + certbot stay on the host (see deploy/nginx). MongoDB is Atlas – nothing local.
+services:
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile, args: { APP_VERSION: "${APP_VERSION:-dev}" } }
+    env_file: .env
+    environment: { NODE_ENV: production, API_PORT: "4000" }
+    ports: ["127.0.0.1:4000:4000"]
+    volumes: ["./uploads:/app/uploads"]   # only used when STORAGE_DRIVER=local
+    restart: unless-stopped
+    logging: { driver: json-file, options: { max-size: "20m", max-file: "5" } }
+  worker:
+    build: { context: ., dockerfile: apps/worker/Dockerfile, args: { APP_VERSION: "${APP_VERSION:-dev}" } }
+    env_file: .env
+    environment: { NODE_ENV: production, WORKER_PORT: "4100" }
+    ports: ["127.0.0.1:4100:4100"]
+    depends_on: [api]
+    restart: unless-stopped
+    logging: { driver: json-file, options: { max-size: "20m", max-file: "5" } }

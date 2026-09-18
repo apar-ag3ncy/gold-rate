@@ -7,7 +7,7 @@
 | 3 Scheduler | ✅ done (17 Sep 2026) | 35 shared + 60 API tests passing (fake-clock scheduler suite); typecheck + web build OK; worker smoke-run OK; dashboard verified |
 | 4A Meta publishers, webhooks, integrations, subscribers | ✅ done (17 Sep 2026) | 41 shared + 78 API tests passing (all Meta HTTP mocked); typecheck + web build OK; DRY_RUN stays default |
 | 4B Staff share PWA + admin alert notifications | ✅ done (18 Sep 2026) | 42 shared + 91 API tests passing; typecheck + web build OK; staff flow verified in browser |
-| 5 RATE auto-reply | not started | |
+| 5 RATE keyword auto-reply | ✅ done (18 Sep 2026) | 47 shared + 106 API tests passing; typecheck + web build OK |
 | 6 Dashboard | not started | |
 | 7 Hardening + deploy | not started | |
 
@@ -184,6 +184,31 @@ reminder timing (default + custom minutes, once per task, stops when posted), de
 dry-run recorded), 30-min de-dup across type/date, partial_send vs send_failed, SMTP missing → skipped, count/filter endpoints,
 encrypted admin numbers + validation.
 
+## Phase 5 – what was built
+**Matching** – `packages/shared/src/meta.ts`: `matchesRateKeyword(text, triggers)` normalises (lowercase, NFKC, punctuation → space,
+collapsed spaces) and requires the **whole message** to equal a trigger – "what is the rate of…" never replies. Defaults:
+rate, gold rate, rate today, today rate, aaj ka rate, bhav (configurable in Settings; JOIN/STOP words are reserved).
+
+**Reply** – `apps/api/src/services/keywordReply.ts` (`handleKeywordMessage`), called from both webhooks:
+- WhatsApp: inside the 24 h customer window → free-form image (feed JPEG) + caption; window closed → the approved daily-rate
+  template (image header + exact values). Not ready + window closed → skipped (no template exists for that).
+- Instagram: official Messaging API `POST /{ig-user-id}/messages` (image attachment, then the caption text) inside the 24 h window.
+- Content = today's **approved/sent** rate only (exact admin values, branded feed image, caption). Otherwise the configurable
+  "check back" text (`settings.keywordReply.notReadyMessage`, validated to contain no numbers). Yesterday's rate is never used.
+- Safeguards: `channels.rateKeywordReply` toggle; per-sender daily limit (`maxPerSenderPerDay`, default 3, counts successful replies);
+  idempotent per incoming message id (delivery key `date:wa_keyword|ig_keyword:keyword:<channel>:<messageId>`); every reply is a
+  `deliveries` row (`trigger=keyword`, channel `wa_keyword` / `ig_keyword`, sender hashed + masked, dry-run flagged); failures are
+  recorded on the row, raise a `keyword_reply_failed` alert (deduped per day+channel) and never crash the webhook (200 is sent first).
+- JOIN / STOP are handled before the keyword check and a keyword reply never opts anyone in.
+
+**API / dashboard** – `GET /deliveries/keyword` (today's count + last 50, masked); Settings section (toggle, trigger words, per-sender
+limit, not-ready text with validation); "Keyword replies" table on the dashboard home.
+
+**Tests** – `packages/shared/test/keyword.test.ts` (matching) and `apps/api/test/keyword.test.ts` (mocked Meta HTTP): exact/mixed
+case/punctuation/Hinglish matches and non-matches; approved → exact values, not approved → no numbers anywhere; window open vs closed
+(free-form vs template; Instagram skip); per-sender limit + daily reset; duplicate message ids; feature off; JOIN/STOP unaffected and
+no auto opt-in; DRY_RUN; Meta failure → alert; signed HTTP webhook processed asynchronously; log endpoint masking; settings validation.
+
 ## How to run / test
 ```bash
 npm install
@@ -206,6 +231,15 @@ Settings → edit the caption template (try an unknown placeholder to see it blo
 4. Admin: enter + approve today's rate, then **Send now** (or wait for the send time). The phone gets "Today's gold rate is ready to share".
 5. On the phone: **Share image + caption** → pick Instagram / WhatsApp → post → back in the app tap **Mark posted** for that channel.
 6. Leave one channel unposted for 30 min (or set the reminder to 5 min in Settings) → reminder push + `manual_pending` alert on the dashboard.
+
+## Test the keyword reply with a real message (once Connections are live)
+1. Settings → make sure the "RATE keyword auto-reply" toggle is ON and DRY_RUN=false with WhatsApp / Instagram connected.
+2. Meta app → Webhooks: WhatsApp field `messages` and Instagram field `messages` (needs `instagram_manage_messages`) subscribed to
+   `https://<api>/api/v1/webhooks/whatsapp` and `/instagram` with the verify token.
+3. From your own phone send **rate** to the business WhatsApp number → within seconds you receive today's image + caption
+   (or the "check back" text if today's rate isn't approved). Send it 4 times → the 4th is silently skipped (limit 3/day).
+4. DM **gold rate** to the Instagram account → image + caption reply. A DM like "what is the rate of bangles" gets no reply.
+5. Dashboard → Keyword replies shows each reply with the masked sender and status; failures show on the Alerts page.
 
 ## Go-live checklist (Phase 4A)
 1. `.env`: `ENCRYPTION_KEY` (openssl rand -base64 32), `META_GRAPH_VERSION`, `META_APP_ID`, `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`,

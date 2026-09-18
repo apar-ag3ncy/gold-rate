@@ -45,6 +45,21 @@ export function buildWhatsAppBodyParams(rate: RateValues, includeExtras: boolean
   return params.map((p) => p.replace(/[\n\t]+/g, ' ').replace(/ {4,}/g, '   '));
 }
 
+/** Phase 5: configurable "RATE" trigger words. Matching is on a normalised message (lowercase, trimmed, punctuation stripped, spaces collapsed). */
+export const DEFAULT_RATE_TRIGGERS = ['rate', 'gold rate', 'rate today', 'today rate', 'aaj ka rate', 'bhav'];
+export const DEFAULT_RATE_NOT_READY_MESSAGE = "Namaste from Chheda Jewellers! Today's gold rate will be updated shortly – please check back in a little while. 🙏";
+export const KEYWORD_LIMIT_DEFAULT = 3;
+export const normaliseKeywordText = (text: string | undefined | null) =>
+  (text ?? '').toLowerCase().normalize('NFKC').replace(/[^\p{L}\p{M}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+/** True only for an exact (normalised) trigger match – never for a keyword buried inside a longer message. */
+export function matchesRateKeyword(text: string | undefined | null, triggers: readonly string[] = DEFAULT_RATE_TRIGGERS): boolean {
+  const t = normaliseKeywordText(text);
+  if (!t) return false;
+  return triggers.some((k) => normaliseKeywordText(k) === t);
+}
+export interface KeywordReplySettings { triggers: string[]; maxPerSenderPerDay: number; notReadyMessage: string }
+export const DEFAULT_KEYWORD_REPLY: KeywordReplySettings = { triggers: DEFAULT_RATE_TRIGGERS, maxPerSenderPerDay: KEYWORD_LIMIT_DEFAULT, notReadyMessage: DEFAULT_RATE_NOT_READY_MESSAGE };
+
 /** Keyword handling for inbound WhatsApp / Instagram messages. */
 export type InboundKeyword = 'join' | 'stop' | 'rate' | null;
 export function classifyKeyword(text: string | undefined | null): InboundKeyword {

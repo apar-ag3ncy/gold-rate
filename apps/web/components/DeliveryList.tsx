@@ -8,7 +8,7 @@ export type Delivery = {
 
 export const channelLabels: Record<string, string> = {
   ig_feed: 'Instagram Feed', ig_story: 'Instagram Story', wa_customers: 'WhatsApp customers',
-  wa_admin: 'Test send → admin only', ig_broadcast_manual: 'Instagram Broadcast (staff)', wa_channel_manual: 'WhatsApp Channel (staff)', wa_community_manual: 'WhatsApp Community (staff)',
+  wa_admin: 'Test send → admin only', ig_broadcast_manual: 'Instagram Broadcast (staff)', wa_channel_manual: 'WhatsApp Channel (staff)', wa_community_manual: 'WhatsApp Community (staff)', wa_keyword: 'WhatsApp keyword reply', ig_keyword: 'Instagram keyword reply',
 };
 const channelIcon: Record<string, string> = { ig_feed: '▣', ig_story: '▯', wa_customers: '✆', wa_admin: '⚑', ig_broadcast_manual: '◎', wa_channel_manual: '◎', wa_community_manual: '◎' };
 const triggerLabels: Record<string, string> = { cron: 'Scheduled', send_now: 'Send Now', test: 'Test', keyword: 'RATE reply' };

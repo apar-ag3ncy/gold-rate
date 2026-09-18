@@ -1,5 +1,5 @@
 /** Delivery channels. Manual ones are shared by staff with 1 tap (no official API). */
-export const DELIVERY_CHANNELS = ['ig_feed', 'ig_story', 'wa_customers', 'wa_admin', 'ig_broadcast_manual', 'wa_channel_manual', 'wa_community_manual'] as const;
+export const DELIVERY_CHANNELS = ['ig_feed', 'ig_story', 'wa_customers', 'wa_admin', 'ig_broadcast_manual', 'wa_channel_manual', 'wa_community_manual', 'wa_keyword', 'ig_keyword'] as const;
 export type DeliveryChannel = (typeof DELIVERY_CHANNELS)[number];
 
 export const DELIVERY_TRIGGERS = ['cron', 'send_now', 'test', 'keyword'] as const;
@@ -9,7 +9,7 @@ export const DELIVERY_STATUSES = ['queued', 'success', 'failed', 'pending_manual
 export type DeliveryStatus = (typeof DELIVERY_STATUSES)[number];
 
 /** Channels that reach customers. A test send must never use one of these. */
-export const CUSTOMER_CHANNELS: readonly DeliveryChannel[] = ['ig_feed', 'ig_story', 'wa_customers', 'ig_broadcast_manual', 'wa_channel_manual', 'wa_community_manual'];
+export const CUSTOMER_CHANNELS: readonly DeliveryChannel[] = ['ig_feed', 'ig_story', 'wa_customers', 'ig_broadcast_manual', 'wa_channel_manual', 'wa_community_manual', 'wa_keyword', 'ig_keyword'];
 
 /** Channels with no official API – staff post them with 1 tap and press "Mark posted". */
 export const MANUAL_SHARE_CHANNELS = ['ig_broadcast_manual', 'wa_channel_manual', 'wa_community_manual'] as const;

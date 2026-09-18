@@ -71,8 +71,8 @@ auth: POST /auth/login, POST /auth/logout, GET /auth/me
 rates: GET /rates?from&to, GET /rates/:date, PUT /rates/:date (create/update draft), POST /rates/:date/approve, POST /rates/:date/correct
 preview: POST /preview (returns image URLs + caption for a draft or unsaved values)
 send: POST /send/test, POST /send/now
-deliveries: GET /deliveries?date, POST /deliveries/:id/mark-posted
-settings: GET/PUT /settings
+deliveries: GET /deliveries?date, GET /deliveries/keyword (RATE auto-reply log), POST /deliveries/:id/mark-posted
+settings: GET/PUT /settings (incl. keywordReply{triggers,maxPerSenderPerDay,notReadyMessage})
 integrations: GET /integrations, POST /integrations/:channel/test
 alerts: GET /alerts, POST /alerts/:id/ack
 subscribers: GET /subscribers, POST /subscribers/import

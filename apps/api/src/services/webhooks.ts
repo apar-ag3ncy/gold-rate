@@ -7,6 +7,12 @@ import { Delivery, WebhookEvent } from '../models';
 import { MetaClient, type FetchLike } from './meta/client';
 import { getIntegrationCreds } from './integrations';
 import { optIn, optOut } from './subscribers';
+import { handleKeywordMessage } from './keywordReply';
+import type { StorageAdapter } from './storage';
+
+/** Set once at startup so keyword replies can render today's creative. */
+let keywordStorage: StorageAdapter | null = null;
+export function setWebhookStorage(st: StorageAdapter | null) { keywordStorage = st; }
 
 /** X-Hub-Signature-256: "sha256=" + HMAC-SHA256(app secret, raw body). Timing-safe compare. */
 export function verifySignature(rawBody: Buffer | undefined, header: string | undefined, appSecret: string | undefined): boolean {
@@ -27,8 +33,8 @@ const JOIN_REPLY = "You're subscribed to Chheda Jewellers' daily gold rate. Repl
 const STOP_REPLY = "You've been unsubscribed from Chheda Jewellers' gold rate updates. Reply JOIN to subscribe again.";
 
 /** WhatsApp Cloud API webhook payload → delivery statuses + JOIN/STOP. Idempotent on message/status id. */
-export async function processWhatsAppEvent(body: any, cfg: Config, fetchFn?: FetchLike) {
-  const summary = { statuses: 0, messages: 0, duplicates: 0, joins: 0, stops: 0, rateKeyword: 0 };
+export async function processWhatsAppEvent(body: any, cfg: Config, fetchFn?: FetchLike, opts: { storage?: StorageAdapter; now?: Date } = {}) {
+  const summary = { statuses: 0, messages: 0, duplicates: 0, joins: 0, stops: 0, rateKeyword: 0, keywordReplies: 0, keywordOutcomes: [] as string[] };
   for (const entry of body?.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const v = change.value ?? {};
@@ -58,7 +64,16 @@ export async function processWhatsAppEvent(body: any, cfg: Config, fetchFn?: Fet
         const from = `+${String(m.from).replace(/^\+/, '')}`;
         if (kw === 'join') { await optIn(from, 'whatsapp_join'); summary.joins++; await replyText(from, JOIN_REPLY, cfg, fetchFn); }
         else if (kw === 'stop') { await optOut(from); summary.stops++; await replyText(from, STOP_REPLY, cfg, fetchFn); }
-        else if (kw === 'rate') { summary.rateKeyword++; logger.info('RATE keyword received – auto-reply arrives in Phase 5'); }
+        else {
+          // Phase 5: RATE keyword auto-reply (never crashes the webhook)
+          const storage = opts.storage ?? keywordStorage;
+          if (storage) {
+            const out = await handleKeywordMessage({ channel: 'whatsapp', senderId: from, messageId: m.id, text, sentAt: Number(m.timestamp) * 1000 || Date.now() }, { cfg, storage, fetchFn, now: opts.now })
+              .catch((err) => { logger.error({ err }, 'keyword handler crashed'); return { action: 'failed', error: String(err) } as const; });
+            if (out.action !== 'no_match') { summary.rateKeyword++; summary.keywordOutcomes.push(out.action); }
+            if (out.action === 'replied') summary.keywordReplies++;
+          }
+        }
         await WebhookEvent.updateOne({ eventKey: key }, { processedAt: new Date() });
       }
     }
@@ -76,15 +91,26 @@ async function replyText(to: string, text: string, cfg: Config, fetchFn?: FetchL
     .catch((e) => logger.warn({ err: e.message }, 'reply failed'));
 }
 
-/** Instagram webhooks (messaging → Phase 5). Stored + deduplicated only. */
-export async function processInstagramEvent(body: any) {
-  let stored = 0, duplicates = 0;
+/** Instagram Messaging webhooks: DMs → RATE keyword auto-reply (official Instagram Messaging API). Echoes/other events stored only. */
+export async function processInstagramEvent(body: any, cfg?: Config, fetchFn?: FetchLike, opts: { storage?: StorageAdapter; now?: Date } = {}) {
+  const summary = { stored: 0, duplicates: 0, messages: 0, rateKeyword: 0, keywordReplies: 0, keywordOutcomes: [] as string[] };
   for (const entry of body?.entry ?? []) {
     const msgs = entry.messaging ?? entry.changes ?? [];
     for (const [i, m] of msgs.entries()) {
-      const key = `ig:${entry.id}:${m.message?.mid ?? m.timestamp ?? entry.time}:${i}`;
-      if (await remember('instagram', key, m.message ? 'message' : 'other', m)) stored++; else duplicates++;
+      const mid = m.message?.mid;
+      const key = `ig:${entry.id}:${mid ?? m.timestamp ?? entry.time}:${mid ? '' : i}`;
+      if (!(await remember('instagram', key, m.message ? 'message' : 'other', { sender: m.sender?.id, mid, text: m.message?.text?.slice(0, 200), is_echo: m.message?.is_echo }))) { summary.duplicates++; continue; }
+      summary.stored++;
+      if (!m.message || m.message.is_echo || !m.sender?.id || !cfg) continue;
+      summary.messages++;
+      const storage = opts.storage ?? keywordStorage;
+      if (!storage) continue;
+      const out = await handleKeywordMessage({ channel: 'instagram', senderId: String(m.sender.id), messageId: String(mid ?? key), text: m.message.text, sentAt: Number(m.timestamp) || Date.now() }, { cfg, storage, fetchFn, now: opts.now })
+        .catch((err) => { logger.error({ err }, 'keyword handler crashed'); return { action: 'failed', error: String(err) } as const; });
+      if (out.action !== 'no_match') { summary.rateKeyword++; summary.keywordOutcomes.push(out.action); }
+      if (out.action === 'replied') summary.keywordReplies++;
+      await WebhookEvent.updateOne({ eventKey: key }, { processedAt: new Date() });
     }
   }
-  return { stored, duplicates };
+  return summary;
 }

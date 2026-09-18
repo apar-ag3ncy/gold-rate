@@ -21,12 +21,14 @@ import { subscribersRouter } from './routes/subscribers';
 import { webhooksRouter } from './routes/webhooks';
 import { staffRouter } from './routes/staff';
 import { setAlertNotifier } from './services/alerts';
+import { setWebhookStorage } from './services/webhooks';
 import { createStorage } from './services/storage';
 
 export function createApp(cfg: Config) {
   const app = express();
   const storage = createStorage(cfg);
   setAlertNotifier(cfg);
+  setWebhookStorage(storage);
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use(helmet());

@@ -1,5 +1,5 @@
 import { Schema, model } from 'mongoose';
-import { DEFAULT_CAPTION_TEMPLATE, DEFAULT_MANUAL_REMINDER_MIN, DEFAULT_WHATSAPP_TEMPLATE } from '@chheda/shared';
+import { DEFAULT_CAPTION_TEMPLATE, DEFAULT_KEYWORD_REPLY, DEFAULT_MANUAL_REMINDER_MIN, DEFAULT_WHATSAPP_TEMPLATE } from '@chheda/shared';
 
 const settingsSchema = new Schema({
   _id: { type: String, default: 'main' },
@@ -12,6 +12,11 @@ const settingsSchema = new Schema({
   maxDailyChangePct: { type: Number, default: 5 },
   captionTemplate: { type: String, default: DEFAULT_CAPTION_TEMPLATE },
   manualReminderMinutes: { type: Number, default: DEFAULT_MANUAL_REMINDER_MIN },
+  keywordReply: {
+    triggers: { type: [String], default: () => [...DEFAULT_KEYWORD_REPLY.triggers] },
+    maxPerSenderPerDay: { type: Number, default: DEFAULT_KEYWORD_REPLY.maxPerSenderPerDay },
+    notReadyMessage: { type: String, default: DEFAULT_KEYWORD_REPLY.notReadyMessage },
+  },
   adminAlerts: {
     emails: { type: [String], default: [] },
     // admin WhatsApp numbers: encrypted like subscribers, masked for display

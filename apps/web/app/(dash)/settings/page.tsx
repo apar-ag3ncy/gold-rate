@@ -12,6 +12,7 @@ type Settings = {
   captionTemplate: string; defaultCaptionTemplate: string;
   whatsapp: { templateName: string; templateLanguage: string; includeExtrasParam: boolean };
   manualReminderMinutes: number;
+  keywordReply: { triggers: string[]; maxPerSenderPerDay: number; notReadyMessage: string; defaults: { triggers: string[]; maxPerSenderPerDay: number; notReadyMessage: string } };
   adminAlerts: { emails: string[]; whatsappNumbers: string[]; templateName?: string; templateLanguage?: string };
 };
 const channelLabels: Record<keyof Settings['channels'], [string, string]> = {
@@ -68,8 +69,8 @@ export default function SettingsPage() {
   async function save() {
     setBusy(true); setMsg(null);
     try {
-      const { automationOn, sendTime, cutoffTime, priceMin, priceMax, maxDailyChangePct, channels, captionTemplate, whatsapp, manualReminderMinutes, adminAlerts } = s!;
-      const r = await api<{ settings: Settings }>('/settings', { method: 'PUT', body: { automationOn, sendTime, cutoffTime, priceMin, priceMax, maxDailyChangePct, channels, captionTemplate, whatsapp, manualReminderMinutes, adminAlerts: { ...adminAlerts, emails: adminAlerts.emails.filter(Boolean), whatsappNumbers: adminAlerts.whatsappNumbers.filter(Boolean) } } });
+      const { automationOn, sendTime, cutoffTime, priceMin, priceMax, maxDailyChangePct, channels, captionTemplate, whatsapp, manualReminderMinutes, adminAlerts, keywordReply } = s!;
+      const r = await api<{ settings: Settings }>('/settings', { method: 'PUT', body: { automationOn, sendTime, cutoffTime, priceMin, priceMax, maxDailyChangePct, channels, captionTemplate, whatsapp, manualReminderMinutes, adminAlerts: { ...adminAlerts, emails: adminAlerts.emails.filter(Boolean), whatsappNumbers: adminAlerts.whatsappNumbers.filter(Boolean) }, keywordReply: { triggers: keywordReply.triggers.filter(Boolean), maxPerSenderPerDay: keywordReply.maxPerSenderPerDay, notReadyMessage: keywordReply.notReadyMessage } } });
       setS(r.settings); setMsg({ kind: 'success', title: 'Settings saved.' });
     } catch (e) {
       const d = (e as ApiError).details?.fields;
@@ -146,6 +147,28 @@ export default function SettingsPage() {
           <label className="flex items-center gap-3 self-end pb-2 text-sm"><input type="checkbox" className="h-4 w-4 accent-copper" checked={s.whatsapp.includeExtrasParam} onChange={(e) => setS({ ...s, whatsapp: { ...s.whatsapp, includeExtrasParam: e.target.checked } })} />Template has a 5th parameter for other purities</label>
         </div>
         <p className="hint">Create and get the template approved in WhatsApp Manager first; the name and parameter count must match exactly. Tokens and ids live on the Connections page.</p>
+      </Section>
+
+      <Section title='"RATE" keyword auto-reply' sub="Customers who message a trigger word on WhatsApp or Instagram get today's approved rate back automatically."
+        right={<div className="flex items-center gap-2 text-sm font-semibold"><span className={s.channels.rateKeywordReply ? 'text-emerald-300' : 'text-sand'}>{s.channels.rateKeywordReply ? 'ON' : 'OFF'}</span><Toggle label="Keyword auto-reply" on={s.channels.rateKeywordReply} onChange={() => setS({ ...s, channels: { ...s.channels, rateKeywordReply: !s.channels.rateKeywordReply } })} /></div>}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="kwt">Trigger words (one per line, whole message must match)</label>
+            <textarea id="kwt" rows={6} className="input font-mono text-xs" value={s.keywordReply.triggers.join('\n')} onChange={(e) => setS({ ...s, keywordReply: { ...s.keywordReply, triggers: e.target.value.split(/\n/).map((x) => x.trim()) } })} />
+            <div className="mt-1 flex items-center justify-between"><p className="hint">Case, spaces and punctuation are ignored. JOIN/STOP are reserved.</p><button type="button" className="text-xs text-copper underline" onClick={() => setS({ ...s, keywordReply: { ...s.keywordReply, triggers: [...s.keywordReply.defaults.triggers] } })}>Reset</button></div>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="label" htmlFor="kwl">Max auto-replies per sender per day</label>
+              <input id="kwl" type="number" min={1} max={50} className="input kbd-money" value={s.keywordReply.maxPerSenderPerDay} onChange={(e) => setS({ ...s, keywordReply: { ...s.keywordReply, maxPerSenderPerDay: Number(e.target.value) } })} />
+            </div>
+            <div>
+              <label className="label" htmlFor="kwn">Reply when today's rate is not approved yet</label>
+              <textarea id="kwn" rows={3} className="input text-sm" value={s.keywordReply.notReadyMessage} onChange={(e) => setS({ ...s, keywordReply: { ...s.keywordReply, notReadyMessage: e.target.value } })} />
+              <p className="hint">Must not contain a rate or number – an old rate is never sent.</p>
+            </div>
+          </div>
+        </div>
       </Section>
 
       <Section title="Staff share & admin alerts" sub="Who gets alerted, and how long staff have before a reminder.">

@@ -13,6 +13,7 @@ type Settings = { automationOn: boolean; sendTime: string; cutoffTime: string; c
 type DayStatus = { status: string; reason?: string; attempts: number; lastCheckAt?: string; sentAt?: string } | null;
 type Integration = { channel: 'instagram' | 'whatsapp'; status: 'not_configured' | 'connected' | 'error'; displayName?: string; expiresAt?: string; lastError?: string };
 type WaCounts = { recipients: number; sent: number; failed: number; queued: number; delivered: number; read: number };
+type KeywordLog = { date: string; todayCount: number; items: { id: string; channel: string; status: string; recipientMasked?: string; kind: string; error?: string; dryRun: boolean; createdAt: string }[] };
 type AlertItem = { id: string; type: string; severity: string; message: string; date?: string; status: string; createdAt: string };
 
 function Stat({ label, value, sub, tone = 'default' }: { label: string; value: React.ReactNode; sub?: React.ReactNode; tone?: 'default' | 'good' | 'bad' }) {
@@ -32,6 +33,7 @@ export default function Dashboard() {
   const [deliveries, setDeliveries] = useState<Delivery[] | null>(null);
   const [day, setDay] = useState<DayStatus>(null);
   const [wa, setWa] = useState<WaCounts | null>(null);
+  const [kw, setKw] = useState<KeywordLog | null>(null);
   const [integrations, setIntegrations] = useState<{ items: Integration[]; dryRun: boolean } | null>(null);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [me, setMe] = useState<{ role: string } | null>(null);
@@ -39,8 +41,8 @@ export default function Dashboard() {
   const [msg, setMsg] = useState<{ kind: 'success' | 'error' | 'warning'; title: string } | null>(null);
   const [sending, setSending] = useState(false);
 
-  const load = () => Promise.all([api<Summary>('/rates/summary'), api<{ settings: Settings }>('/settings'), api<{ items: Delivery[]; day: DayStatus; whatsapp: WaCounts }>('/deliveries'), api<{ items: AlertItem[] }>('/alerts?status=open'), api<{ user: { role: string } }>('/auth/me'), api<{ items: Integration[]; dryRun: boolean }>('/integrations')])
-    .then(([a, b, c, d, e, f]) => { setS(a); setCfg(b.settings); setDeliveries(c.items); setDay(c.day); setWa(c.whatsapp); setAlerts(d.items); setMe(e.user); setIntegrations(f); })
+  const load = () => Promise.all([api<Summary>('/rates/summary'), api<{ settings: Settings }>('/settings'), api<{ items: Delivery[]; day: DayStatus; whatsapp: WaCounts }>('/deliveries'), api<{ items: AlertItem[] }>('/alerts?status=open'), api<{ user: { role: string } }>('/auth/me'), api<{ items: Integration[]; dryRun: boolean }>('/integrations'), api<KeywordLog>('/deliveries/keyword')])
+    .then(([a, b, c, d, e, f, g]) => { setS(a); setCfg(b.settings); setDeliveries(c.items); setDay(c.day); setWa(c.whatsapp); setAlerts(d.items); setMe(e.user); setIntegrations(f); setKw(g); })
     .catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []);
 
@@ -128,6 +130,34 @@ export default function Dashboard() {
         </div>
         {day?.reason && <p className="mb-2 text-xs text-amber-100/90">Scheduler: {day.reason}{day.lastCheckAt && ` (last check ${new Date(day.lastCheckAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })} IST)`}</p>}
         {deliveries ? <DeliveryList items={deliveries} /> : <p className="text-sm text-sand">Loading…</p>}
+      </section>
+
+      <section className="card">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div>
+            <h2 className="card-title">Keyword replies</h2>
+            <p className="hint">Customers who message a trigger word (e.g. "rate") get today's approved rate back – {cfg.channels.rateKeywordReply ? 'ON' : 'OFF'} · <Link href="/settings" className="text-copper underline">settings</Link></p>
+          </div>
+          <span className="chip"><b className="text-cream">{kw?.todayCount ?? 0}</b> today</span>
+        </div>
+        {!kw || kw.items.length === 0 ? <p className="text-sm text-sand">No keyword replies yet.</p> : (
+          <div className="max-h-72 overflow-y-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-[10px] uppercase tracking-wider text-sand"><tr><th className="py-1 pr-3">When</th><th className="pr-3">Channel</th><th className="pr-3">Sender</th><th className="pr-3">Reply</th><th>Status</th></tr></thead>
+              <tbody>
+                {kw.items.map((i) => (
+                  <tr key={i.id} className="border-t border-cream-200/10">
+                    <td className="whitespace-nowrap py-1.5 pr-3 text-xs">{new Date(i.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' })}</td>
+                    <td className="pr-3 text-xs">{i.channel === 'wa_keyword' ? 'WhatsApp' : 'Instagram'}</td>
+                    <td className="pr-3 font-mono text-xs">{i.recipientMasked}</td>
+                    <td className="pr-3 text-xs">{i.kind === 'rate' ? "today's rate" : 'check back'}{i.dryRun && ' · dry run'}</td>
+                    <td><StatusBadge status={i.status === 'success' ? 'success' : i.status === 'failed' ? 'failed' : 'skipped'} short />{i.error && <span className="ml-1 text-xs text-red-200">{i.error}</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <div className="grid gap-4 md:grid-cols-3">

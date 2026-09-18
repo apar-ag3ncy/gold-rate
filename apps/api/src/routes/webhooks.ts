@@ -30,7 +30,7 @@ export function webhooksRouter(cfg: Config) {
     res.status(200).json({ ok: true });
     const body = req.body;
     setImmediate(() => {
-      (source === 'whatsapp' ? processWhatsAppEvent(body, cfg) : processInstagramEvent(body))
+      (source === 'whatsapp' ? processWhatsAppEvent(body, cfg) : processInstagramEvent(body, cfg))
         .then((summary) => logger.info({ source, ...summary }, 'webhook processed'))
         .catch((err) => logger.error({ err, source }, 'webhook processing failed'));
     });

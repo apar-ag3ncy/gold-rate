@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { captionTemplateSchema, DEFAULT_CAPTION_TEMPLATE, maskPhone, normalisePhone } from '@chheda/shared';
+import { captionTemplateSchema, DEFAULT_CAPTION_TEMPLATE, DEFAULT_KEYWORD_REPLY, maskPhone, normaliseKeywordText, normalisePhone } from '@chheda/shared';
 import { encrypt } from '../lib/crypto';
 import { getSettings } from '../models';
 import { audit } from '../lib/audit';
@@ -18,6 +18,15 @@ const updateSchema = z.object({
   maxDailyChangePct: z.number().min(0.5).max(50).optional(),
   captionTemplate: captionTemplateSchema.optional(),
   manualReminderMinutes: z.number().int().min(5).max(240).optional(),
+  keywordReply: z.object({
+    triggers: z.array(z.string().trim().min(2, 'Trigger words need at least 2 characters').max(40)).min(1, 'Keep at least one trigger word').max(30)
+      .transform((arr) => Array.from(new Set(arr.map((t) => normaliseKeywordText(t)).filter(Boolean))))
+      .refine((arr) => arr.length > 0, 'Keep at least one trigger word')
+      .refine((arr) => !arr.some((t) => ['join', 'stop', 'subscribe', 'unsubscribe', 'start', 'cancel'].includes(t)), 'JOIN/STOP words are reserved for opt-in / opt-out').optional(),
+    maxPerSenderPerDay: z.number().int().min(1).max(50).optional(),
+    notReadyMessage: z.string().trim().min(10, 'Message is too short').max(1000, 'Max 1000 characters')
+      .refine((m) => !/₹\s?\d|\d{4,}/.test(m), 'The "not ready" message must not contain a rate or number').optional(),
+  }).strict().optional(),
   adminAlerts: z.object({
     emails: z.array(z.string().trim().email('Invalid email')).max(10).optional(),
     /** full list of numbers, replaces the stored list (masked values from GET are accepted and keep the stored number) */
@@ -41,6 +50,7 @@ const view = (s: any) => ({
   captionTemplate: s.captionTemplate ?? DEFAULT_CAPTION_TEMPLATE, defaultCaptionTemplate: DEFAULT_CAPTION_TEMPLATE,
   whatsapp: { templateName: s.whatsapp?.templateName, templateLanguage: s.whatsapp?.templateLanguage, includeExtrasParam: s.whatsapp?.includeExtrasParam },
   manualReminderMinutes: s.manualReminderMinutes ?? 30,
+  keywordReply: { triggers: s.keywordReply?.triggers?.length ? s.keywordReply.triggers : DEFAULT_KEYWORD_REPLY.triggers, maxPerSenderPerDay: s.keywordReply?.maxPerSenderPerDay ?? DEFAULT_KEYWORD_REPLY.maxPerSenderPerDay, notReadyMessage: s.keywordReply?.notReadyMessage ?? DEFAULT_KEYWORD_REPLY.notReadyMessage, defaults: DEFAULT_KEYWORD_REPLY },
   adminAlerts: { emails: s.adminAlerts?.emails ?? [], whatsappNumbers: (s.adminAlerts?.whatsappNumbers ?? []).map((n: any) => n.masked), templateName: s.adminAlerts?.templateName, templateLanguage: s.adminAlerts?.templateLanguage },
 });
 
@@ -52,10 +62,11 @@ export function settingsRouter() {
     const upd = parse(updateSchema, req.body);
     const s = await getSettings();
     const before = view(s);
-    const { channels, whatsapp, adminAlerts, ...rest } = upd;
+    const { channels, whatsapp, adminAlerts, keywordReply, ...rest } = upd;
     s.set(rest);
     if (channels) for (const [k, v] of Object.entries(channels)) s.set(`channels.${k}`, v);
     if (whatsapp) for (const [k, v] of Object.entries(whatsapp)) if (v !== undefined) s.set(`whatsapp.${k}`, v);
+    if (keywordReply) for (const [k, v] of Object.entries(keywordReply)) if (v !== undefined) s.set(`keywordReply.${k}`, v);
     if (adminAlerts) {
       const { whatsappNumbers, ...a } = adminAlerts;
       for (const [k, v] of Object.entries(a)) if (v !== undefined) s.set(`adminAlerts.${k}`, v);

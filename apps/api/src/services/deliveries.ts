@@ -11,7 +11,7 @@ export function deliveryToDTO(d: any) {
   return {
     id: String(d._id), rateId: d.rateId ? String(d.rateId) : undefined, date: d.date, channel: d.channel, trigger: d.trigger,
     status: d.status, idempotencyKey: d.idempotencyKey, recipient: d.recipient, dryRun: d.dryRun, requestedBy: d.requestedBy,
-    postedBy: d.postedBy, externalId: d.externalId, error: d.error, attempts: d.attempts ?? 0,
+    postedBy: d.postedBy, postedAt: d.postedAt, reminderSentAt: d.reminderSentAt, externalId: d.externalId, error: d.error, attempts: d.attempts ?? 0,
     creativeUrls: d.creativeUrls?.feed ? { feed: d.creativeUrls.feed, story: d.creativeUrls.story } : undefined,
     caption: d.caption, stats: d.stats?.total != null ? d.stats : undefined, waStatus: d.waStatus, metaErrorCode: d.metaErrorCode, retryable: d.retryable, createdAt: d.createdAt, updatedAt: d.updatedAt,
   };

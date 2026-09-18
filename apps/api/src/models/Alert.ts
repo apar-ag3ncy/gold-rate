@@ -12,6 +12,10 @@ const alertSchema = new Schema({
   ackBy: String,
   ackAt: Date,
   meta: Schema.Types.Mixed,
+  // Phase 4B: admin notification fan-out (email + WhatsApp utility template), de-duplicated per type+date per 30 min
+  notifiedAt: Date,
+  notifications: { type: [{ channel: String, to: String, status: String, error: String, at: Date, _id: false }], default: [] },
 }, { timestamps: true });
+alertSchema.index({ type: 1, date: 1, notifiedAt: -1 });
 
 export const Alert = model('Alert', alertSchema);

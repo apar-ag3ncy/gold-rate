@@ -9,6 +9,7 @@ const nav = [
   { href: '/', label: 'Dashboard' },
   { href: '/rates', label: 'Enter Rate' },
   { href: '/history', label: 'History' },
+  { href: '/alerts', label: 'Alerts' },
   { href: '/subscribers', label: 'Subscribers' },
   { href: '/settings', label: 'Settings', exact: true },
   { href: '/settings/connections', label: 'Connections' },
@@ -20,8 +21,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [clock, setClock] = useState('');
+  const [openAlerts, setOpenAlerts] = useState(0);
 
   useEffect(() => { api<{ user: Me }>('/auth/me').then((r) => setMe(r.user)).catch(() => {}); }, []);
+  useEffect(() => {
+    const f = () => api<{ open: number }>('/alerts/count').then((r) => setOpenAlerts(r.open)).catch(() => {});
+    f(); const id = setInterval(f, 60_000); return () => clearInterval(id);
+  }, [path]);
   useEffect(() => {
     const t = () => setClock(new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }));
     t(); const id = setInterval(t, 30_000); return () => clearInterval(id);
@@ -47,7 +53,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 return (
                   <Link key={n.href} href={n.href} aria-current={active ? 'page' : undefined}
                     className={`whitespace-nowrap rounded-full px-3.5 py-1.5 font-sans text-[10.5px] font-semibold uppercase tracking-[0.18em] transition ${active ? 'bg-emerald-900 text-cream shadow-sm' : 'text-emerald-900/75 hover:bg-emerald-900/8 hover:text-emerald-900'}`}>
-                    {n.label}
+                    {n.label}{n.href === '/alerts' && openAlerts > 0 && <span className="ml-1.5 rounded-full bg-red-500 px-1.5 text-[9px] text-white">{openAlerts}</span>}
                   </Link>
                 );
               })}
@@ -55,6 +61,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <div className="flex shrink-0 items-center gap-2">
               {clock && <span className="hidden font-sans text-[10px] uppercase tracking-[0.14em] text-emerald-900/60 xl:inline">{clock} IST</span>}
               {me && <span className="hidden rounded-full border border-emerald-900/15 px-2.5 py-1 font-sans text-[10px] uppercase tracking-[0.14em] text-emerald-900/80 md:inline">{me.name} · {me.role}</span>}
+              <Link href="/staff" className="hidden rounded-full border border-emerald-900/15 px-3 py-1 font-sans text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-900/80 hover:bg-emerald-900/8 sm:inline">Staff app</Link>
               <button onClick={logout} className="rounded-full border border-copper/60 bg-copper/10 px-3.5 py-1.5 font-sans text-[10px] font-semibold uppercase tracking-[0.18em] text-copper-600 transition hover:bg-copper/25">Log out</button>
             </div>
           </div>
@@ -64,7 +71,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               return (
                 <Link key={n.href} href={n.href} aria-current={active ? 'page' : undefined}
                   className={`whitespace-nowrap rounded-full px-3.5 py-1.5 font-sans text-[10.5px] font-semibold uppercase tracking-[0.18em] transition ${active ? 'bg-emerald-900 text-cream shadow-sm' : 'text-emerald-900/75 hover:bg-emerald-900/8'}`}>
-                  {n.label}
+                  {n.label}{n.href === '/alerts' && openAlerts > 0 && <span className="ml-1.5 rounded-full bg-red-500 px-1.5 text-[9px] text-white">{openAlerts}</span>}
                 </Link>
               );
             })}

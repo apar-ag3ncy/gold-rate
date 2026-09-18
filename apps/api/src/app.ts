@@ -19,11 +19,14 @@ import { alertsRouter } from './routes/alerts';
 import { integrationsRouter } from './routes/integrations';
 import { subscribersRouter } from './routes/subscribers';
 import { webhooksRouter } from './routes/webhooks';
+import { staffRouter } from './routes/staff';
+import { setAlertNotifier } from './services/alerts';
 import { createStorage } from './services/storage';
 
 export function createApp(cfg: Config) {
   const app = express();
   const storage = createStorage(cfg);
+  setAlertNotifier(cfg);
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use(helmet());
@@ -60,6 +63,7 @@ export function createApp(cfg: Config) {
   api.use('/alerts', alertsRouter());
   api.use('/integrations', integrationsRouter(cfg));
   api.use('/subscribers', subscribersRouter());
+  api.use('/staff', staffRouter(cfg));
   api.use((_req, _res, next) => next(new HttpError(404, 'Route not found')));
   app.use('/api/v1', api);
 

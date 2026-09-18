@@ -7,4 +7,4 @@ export function middleware(req: NextRequest) {
   if (!has && !isLogin) return NextResponse.redirect(new URL('/login', req.url));
   return NextResponse.next();
 }
-export const config = { matcher: ['/((?!api|_next|favicon.ico).*)'] };
+export const config = { matcher: ['/((?!api|_next|favicon.ico|sw.js|manifest.webmanifest|icons).*)'] };

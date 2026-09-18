@@ -14,9 +14,11 @@ import { createStorage } from '@chheda/api/services/storage/index';
 import { recoverMissedRun, tick } from '@chheda/api/services/scheduler';
 import { withLock } from '@chheda/api/services/lock';
 import { getSettings } from '@chheda/api/models/index';
+import { setAlertNotifier } from '@chheda/api/services/alerts';
 
 const cfg = loadConfig();
 await connectDb(cfg.MONGO_URI);
+setAlertNotifier(cfg);
 const deps = { cfg, storage: createStorage(cfg) };
 const s = await getSettings();
 logger.info({ sendTime: s.sendTime, cutoffTime: s.cutoffTime, automationOn: s.automationOn, dryRun: cfg.DRY_RUN }, 'Worker starting (Asia/Kolkata)');

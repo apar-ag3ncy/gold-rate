@@ -6,7 +6,12 @@ import './globals.css';
 const cormorant = Cormorant({ subsets: ['latin'], weight: ['300', '400', '500', '600'], style: ['normal', 'italic'], variable: '--font-cormorant', display: 'swap' });
 const montserrat = Montserrat({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-montserrat', display: 'swap' });
 
-export const metadata: Metadata = { title: 'Chheda Gold Rate Admin', robots: { index: false, follow: false } };
+export const metadata: Metadata = {
+  title: 'Chheda Gold Rate Admin', robots: { index: false, follow: false },
+  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Chheda Rate' },
+  icons: { apple: '/icons/apple-touch-icon.png' },
+};
+export const viewport = { themeColor: '#0b3a2d', width: 'device-width', initialScale: 1, viewportFit: 'cover' as const };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return <html lang="en" className={`${cormorant.variable} ${montserrat.variable}`}><body>{children}</body></html>;

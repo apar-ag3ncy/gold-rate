@@ -1,5 +1,5 @@
 import { Schema, model } from 'mongoose';
-import { DEFAULT_CAPTION_TEMPLATE, DEFAULT_WHATSAPP_TEMPLATE } from '@chheda/shared';
+import { DEFAULT_CAPTION_TEMPLATE, DEFAULT_MANUAL_REMINDER_MIN, DEFAULT_WHATSAPP_TEMPLATE } from '@chheda/shared';
 
 const settingsSchema = new Schema({
   _id: { type: String, default: 'main' },
@@ -11,6 +11,14 @@ const settingsSchema = new Schema({
   priceMax: { type: Number, default: 50000 },
   maxDailyChangePct: { type: Number, default: 5 },
   captionTemplate: { type: String, default: DEFAULT_CAPTION_TEMPLATE },
+  manualReminderMinutes: { type: Number, default: DEFAULT_MANUAL_REMINDER_MIN },
+  adminAlerts: {
+    emails: { type: [String], default: [] },
+    // admin WhatsApp numbers: encrypted like subscribers, masked for display
+    whatsappNumbers: { type: [{ enc: String, masked: String, _id: false }], default: [] },
+    templateName: { type: String, default: 'admin_alert' },      // approved UTILITY template: {{1}} title, {{2}} message
+    templateLanguage: { type: String, default: 'en' },
+  },
   whatsapp: {
     templateName: { type: String, default: DEFAULT_WHATSAPP_TEMPLATE.templateName },
     templateLanguage: { type: String, default: DEFAULT_WHATSAPP_TEMPLATE.templateLanguage },

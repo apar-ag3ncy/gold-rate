@@ -14,6 +14,7 @@ Admin enters the daily gold rate → approves → the system sends it automatica
 npm install
 cp .env.example .env              # then fill in values
 docker compose up -d              # local MongoDB (skip if using Atlas)
+# no Docker? run `npm run dev:mongo` in its own terminal instead (in-memory, data lost on stop)
 npm run seed                      # creates the first admin from SEED_ADMIN_* in .env
 ```
 Password rule: 10+ characters with upper-case, lower-case and a number (locally you can override with `SEED_ALLOW_WEAK_PASSWORD=true`;

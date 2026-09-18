@@ -2,15 +2,15 @@ import { StatusBadge } from './StatusBadge';
 
 export type Delivery = {
   id: string; date: string; channel: string; trigger: string; status: string;
-  recipient?: string; dryRun: boolean; requestedBy?: string; error?: string;
+  recipient?: string; dryRun: boolean; requestedBy?: string; error?: string; postedBy?: string; postedAt?: string; reminderSentAt?: string; stats?: { total: number; sent: number; failed: number; skipped: number };
   creativeUrls?: { feed?: string; story?: string }; createdAt: string;
 };
 
 export const channelLabels: Record<string, string> = {
   ig_feed: 'Instagram Feed', ig_story: 'Instagram Story', wa_customers: 'WhatsApp customers',
-  wa_admin: 'Test send → admin only', ig_broadcast_manual: 'Instagram Broadcast (staff)', wa_channel_manual: 'WhatsApp Channel (staff)',
+  wa_admin: 'Test send → admin only', ig_broadcast_manual: 'Instagram Broadcast (staff)', wa_channel_manual: 'WhatsApp Channel (staff)', wa_community_manual: 'WhatsApp Community (staff)',
 };
-const channelIcon: Record<string, string> = { ig_feed: '▣', ig_story: '▯', wa_customers: '✆', wa_admin: '⚑', ig_broadcast_manual: '◎', wa_channel_manual: '◎' };
+const channelIcon: Record<string, string> = { ig_feed: '▣', ig_story: '▯', wa_customers: '✆', wa_admin: '⚑', ig_broadcast_manual: '◎', wa_channel_manual: '◎', wa_community_manual: '◎' };
 const triggerLabels: Record<string, string> = { cron: 'Scheduled', send_now: 'Send Now', test: 'Test', keyword: 'RATE reply' };
 
 export function DeliveryList({ items }: { items: Delivery[] }) {
@@ -32,6 +32,9 @@ export function DeliveryList({ items }: { items: Delivery[] }) {
             <p className="hint truncate">
               {new Date(d.createdAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })} IST
               {d.recipient && ` · to ${d.recipient}`}{d.dryRun && ' · DRY RUN (logged only)'}
+              {d.stats && ` · ${d.stats.sent}/${d.stats.total} sent, ${d.stats.failed} failed`}
+              {d.postedBy && ` · posted by ${d.postedBy} at ${new Date(d.postedAt!).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })}`}
+              {d.status === 'pending_manual' && !d.postedBy && ' · waiting for staff'}{d.reminderSentAt && d.status === 'pending_manual' && ' · reminder sent'}
             </p>
             {d.error && <p className="text-xs text-red-300">{d.error}</p>}
           </div>

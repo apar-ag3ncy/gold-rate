@@ -23,7 +23,7 @@ export interface Publisher {
 }
 
 export const AUTO_CHANNELS = ['ig_feed', 'ig_story', 'wa_customers'] as const satisfies readonly DeliveryChannel[];
-export const MANUAL_CHANNELS = ['ig_broadcast_manual', 'wa_channel_manual'] as const satisfies readonly DeliveryChannel[];
+export const MANUAL_CHANNELS = ['ig_broadcast_manual', 'wa_channel_manual', 'wa_community_manual'] as const satisfies readonly DeliveryChannel[];
 export type AutoChannel = (typeof AUTO_CHANNELS)[number];
 
 export class DryRunPublisher implements Publisher {

@@ -16,6 +16,7 @@ import { previewSavedRate } from './preview';
 import { AUTO_CHANNELS, MANUAL_CHANNELS, createPublishers, type AutoChannel, type PublishPayload, type PublisherMap } from './publishers';
 import { isRetryable, type FetchLike } from './meta/client';
 import { checkIntegrationsHealth } from './integrations';
+import { notifyStaffReady, remindPendingManual } from './staff';
 import type { StorageAdapter } from './storage';
 
 export interface SchedulerDeps {
@@ -49,6 +50,8 @@ export async function tick(now: Date, deps: SchedulerDeps): Promise<TickResult> 
   if (isHealthCheckMinute(time, window)) out.healthCheck = await healthCheck(healthCheckIsPreviousDay(window) ? addDays(date, 1) : date, deps);
   if (isSendOrRecheckMinute(time, window)) out.send = await attemptSend(date, now, 'cron', deps);
   if (isCutoffMinute(time, window)) out.closed = await closeDay(date, now, 'Cut-off time passed without an approved rate.');
+  const r = await remindPendingManual(deps.cfg, now);
+  if (r.reminded) (out as any).reminders = r.reminded;
   return out;
 }
 
@@ -100,12 +103,15 @@ async function sendApprovedRate(rate: any, date: string, now: Date, trigger: 'cr
   for (const channel of enabled) channels[channel] = await deliverChannel(channel, payload, rate._id, trigger, publishers, sleep, deps);
 
   if (s.channels?.staffShare !== false) {
+    let createdManual = 0;
     for (const channel of MANUAL_CHANNELS) {
-      await Delivery.updateOne({ idempotencyKey: deliveryIdempotencyKey(date, channel, 'cron') },
+      const r = await Delivery.updateOne({ idempotencyKey: deliveryIdempotencyKey(date, channel, 'cron') },
         { $setOnInsert: { rateId: rate._id, date, channel, trigger, status: 'pending_manual', dryRun: deps.cfg.DRY_RUN, creativeUrls: { feed: payload.feedUrl, story: payload.storyUrl }, caption: payload.caption } },
         { upsert: true });
+      if (r.upsertedCount) createdManual++;
       channels[channel] = 'pending_manual';
     }
+    if (createdManual) await notifyStaffReady(deps.cfg, date).catch((err) => logger.warn({ err }, 'staff push failed'));
   }
 
   const allOk = enabled.every((c) => channels[c] === 'success');
@@ -119,7 +125,8 @@ async function sendApprovedRate(rate: any, date: string, now: Date, trigger: 'cr
   }
   await SendDay.updateOne({ date }, { $set: { status: 'partial', reason: 'One or more channels failed' } });
   const failed = enabled.filter((c) => channels[c] !== 'success');
-  await raiseAlert({ type: 'send_failed', severity: 'critical', date, dedupeKey: `send_failed:${date}:${failed.join(',')}:${trigger}:${now.getTime()}`,
+  const allFailed = failed.length === enabled.length;
+  await raiseAlert({ type: allFailed ? 'send_failed' : 'partial_send', severity: 'critical', date, dedupeKey: `${allFailed ? 'send_failed' : 'partial_send'}:${date}:${failed.join(',')}:${trigger}:${now.getTime()}`,
     message: `Sending failed on ${failed.join(', ')}. Successful channels will not be repeated – use Send Now to retry the failed ones.`, meta: channels });
   return { action: 'partial', channels };
 }

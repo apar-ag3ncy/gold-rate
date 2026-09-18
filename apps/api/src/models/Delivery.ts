@@ -17,6 +17,8 @@ const deliverySchema = new Schema({
   dryRun: { type: Boolean, default: true },
   requestedBy: String,
   postedBy: String,             // manual channels: staff member who marked it posted
+  postedAt: Date,
+  reminderSentAt: Date,         // manual channels: 30-min reminder already sent
   externalId: String,           // Meta media id / message id (Phase 4)
   error: String,
   attempts: { type: Number, default: 0 },

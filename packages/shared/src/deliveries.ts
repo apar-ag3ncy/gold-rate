@@ -1,5 +1,5 @@
 /** Delivery channels. Manual ones are shared by staff with 1 tap (no official API). */
-export const DELIVERY_CHANNELS = ['ig_feed', 'ig_story', 'wa_customers', 'wa_admin', 'ig_broadcast_manual', 'wa_channel_manual'] as const;
+export const DELIVERY_CHANNELS = ['ig_feed', 'ig_story', 'wa_customers', 'wa_admin', 'ig_broadcast_manual', 'wa_channel_manual', 'wa_community_manual'] as const;
 export type DeliveryChannel = (typeof DELIVERY_CHANNELS)[number];
 
 export const DELIVERY_TRIGGERS = ['cron', 'send_now', 'test', 'keyword'] as const;
@@ -9,7 +9,33 @@ export const DELIVERY_STATUSES = ['queued', 'success', 'failed', 'pending_manual
 export type DeliveryStatus = (typeof DELIVERY_STATUSES)[number];
 
 /** Channels that reach customers. A test send must never use one of these. */
-export const CUSTOMER_CHANNELS: readonly DeliveryChannel[] = ['ig_feed', 'ig_story', 'wa_customers', 'ig_broadcast_manual', 'wa_channel_manual'];
+export const CUSTOMER_CHANNELS: readonly DeliveryChannel[] = ['ig_feed', 'ig_story', 'wa_customers', 'ig_broadcast_manual', 'wa_channel_manual', 'wa_community_manual'];
+
+/** Channels with no official API – staff post them with 1 tap and press "Mark posted". */
+export const MANUAL_SHARE_CHANNELS = ['ig_broadcast_manual', 'wa_channel_manual', 'wa_community_manual'] as const;
+export type ManualShareChannel = (typeof MANUAL_SHARE_CHANNELS)[number];
+export const MANUAL_CHANNEL_INFO: Record<ManualShareChannel, { label: string; app: 'instagram' | 'whatsapp'; hint: string }> = {
+  ig_broadcast_manual: { label: 'Instagram Broadcast Channel', app: 'instagram', hint: 'Open Instagram → your broadcast channel → share the feed image with the caption.' },
+  wa_channel_manual: { label: 'WhatsApp Channel', app: 'whatsapp', hint: 'Open WhatsApp → Updates → your channel → post the feed image with the caption.' },
+  wa_community_manual: { label: 'WhatsApp Community', app: 'whatsapp', hint: 'Open WhatsApp → the community announcement group → send the feed image with the caption.' },
+};
+
+export interface StaffTodayReady {
+  ready: true;
+  date: string;
+  feedUrl: string;
+  storyUrl: string;
+  caption: string;
+  tasks: { id: string; channel: ManualShareChannel; status: 'pending_manual' | 'success'; postedBy?: string; postedAt?: string; createdAt: string }[];
+}
+export interface StaffTodayNotReady {
+  ready: false;
+  date: string;
+  reason: 'no_rate' | 'not_approved' | 'cancelled' | 'before_send_time' | 'skipped' | 'staff_share_off';
+  message: string;
+  sendTime?: string;
+}
+export type StaffToday = StaffTodayReady | StaffTodayNotReady;
 
 /**
  * Idempotency key (unique index on deliveries).

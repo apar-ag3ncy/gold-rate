@@ -80,7 +80,10 @@ export function nextSendDescription(nowDate: string, nowTime: string, sendTime: 
   return toMinutes(nowTime) < toMinutes(sendTime) ? { date: nowDate, time: sendTime } : { date: addDays(nowDate, 1), time: sendTime };
 }
 
-export const ALERT_TYPES = ['rate_missing', 'send_failed', 'token_expiring', 'manual_pending', 'health_check', 'day_skipped'] as const;
+export const ALERT_TYPES = ['rate_missing', 'send_failed', 'partial_send', 'token_expiring', 'manual_pending', 'health_check', 'day_skipped'] as const;
+/** The same alert type for the same date is notified at most once per this window. */
+export const ALERT_NOTIFY_WINDOW_MIN = 30;
+export const DEFAULT_MANUAL_REMINDER_MIN = 30;
 export type AlertType = (typeof ALERT_TYPES)[number];
 export const ALERT_SEVERITIES = ['info', 'warning', 'critical'] as const;
 export type AlertSeverity = (typeof ALERT_SEVERITIES)[number];

@@ -11,6 +11,8 @@ type Settings = {
   channels: { igFeed: boolean; igStory: boolean; waCustomers: boolean; staffShare: boolean; rateKeywordReply: boolean };
   captionTemplate: string; defaultCaptionTemplate: string;
   whatsapp: { templateName: string; templateLanguage: string; includeExtrasParam: boolean };
+  manualReminderMinutes: number;
+  adminAlerts: { emails: string[]; whatsappNumbers: string[]; templateName?: string; templateLanguage?: string };
 };
 const channelLabels: Record<keyof Settings['channels'], [string, string]> = {
   igFeed: ['Instagram Feed post', 'automatic'],
@@ -66,8 +68,8 @@ export default function SettingsPage() {
   async function save() {
     setBusy(true); setMsg(null);
     try {
-      const { automationOn, sendTime, cutoffTime, priceMin, priceMax, maxDailyChangePct, channels, captionTemplate, whatsapp } = s!;
-      const r = await api<{ settings: Settings }>('/settings', { method: 'PUT', body: { automationOn, sendTime, cutoffTime, priceMin, priceMax, maxDailyChangePct, channels, captionTemplate, whatsapp } });
+      const { automationOn, sendTime, cutoffTime, priceMin, priceMax, maxDailyChangePct, channels, captionTemplate, whatsapp, manualReminderMinutes, adminAlerts } = s!;
+      const r = await api<{ settings: Settings }>('/settings', { method: 'PUT', body: { automationOn, sendTime, cutoffTime, priceMin, priceMax, maxDailyChangePct, channels, captionTemplate, whatsapp, manualReminderMinutes, adminAlerts: { ...adminAlerts, emails: adminAlerts.emails.filter(Boolean), whatsappNumbers: adminAlerts.whatsappNumbers.filter(Boolean) } } });
       setS(r.settings); setMsg({ kind: 'success', title: 'Settings saved.' });
     } catch (e) {
       const d = (e as ApiError).details?.fields;
@@ -144,6 +146,34 @@ export default function SettingsPage() {
           <label className="flex items-center gap-3 self-end pb-2 text-sm"><input type="checkbox" className="h-4 w-4 accent-copper" checked={s.whatsapp.includeExtrasParam} onChange={(e) => setS({ ...s, whatsapp: { ...s.whatsapp, includeExtrasParam: e.target.checked } })} />Template has a 5th parameter for other purities</label>
         </div>
         <p className="hint">Create and get the template approved in WhatsApp Manager first; the name and parameter count must match exactly. Tokens and ids live on the Connections page.</p>
+      </Section>
+
+      <Section title="Staff share & admin alerts" sub="Who gets alerted, and how long staff have before a reminder.">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="rem">Reminder if not marked posted after (minutes)</label>
+            <input id="rem" type="number" min={5} max={240} className="input kbd-money" value={s.manualReminderMinutes} onChange={(e) => setS({ ...s, manualReminderMinutes: Number(e.target.value) })} />
+            <p className="hint">Staff get a push reminder and an admin alert is raised for each channel still pending.</p>
+          </div>
+          <div>
+            <label className="label" htmlFor="tplalert">Admin alert WhatsApp template (utility)</label>
+            <div className="flex gap-2">
+              <input id="tplalert" className="input font-mono" value={s.adminAlerts.templateName ?? ''} onChange={(e) => setS({ ...s, adminAlerts: { ...s.adminAlerts, templateName: e.target.value } })} placeholder="admin_alert" />
+              <input className="input w-24 font-mono" value={s.adminAlerts.templateLanguage ?? ''} onChange={(e) => setS({ ...s, adminAlerts: { ...s.adminAlerts, templateLanguage: e.target.value } })} placeholder="en" />
+            </div>
+            <p className="hint">Body {'{{1}}'} = title, {'{{2}}'} = message. Sent only when DRY_RUN=false and WhatsApp is connected.</p>
+          </div>
+          <div>
+            <label className="label" htmlFor="emails">Alert emails (one per line)</label>
+            <textarea id="emails" rows={3} className="input font-mono text-xs" value={s.adminAlerts.emails.join('\n')} onChange={(e) => setS({ ...s, adminAlerts: { ...s.adminAlerts, emails: e.target.value.split(/\n/).map((x) => x.trim()) } })} placeholder="owner@chhedajewellers.com" />
+            <p className="hint">Needs SMTP_* in .env. Empty = no emails.</p>
+          </div>
+          <div>
+            <label className="label" htmlFor="nums">Admin WhatsApp numbers (one per line)</label>
+            <textarea id="nums" rows={3} className="input font-mono text-xs" value={s.adminAlerts.whatsappNumbers.join('\n')} onChange={(e) => setS({ ...s, adminAlerts: { ...s.adminAlerts, whatsappNumbers: e.target.value.split(/\n/).map((x) => x.trim()) } })} placeholder="+919876543210" />
+            <p className="hint">Stored encrypted; shown masked after saving. Keep the masked lines to keep the numbers.</p>
+          </div>
+        </div>
       </Section>
 
       <Section title="Safety checks" sub="These only block mistakes – they never change a rate.">

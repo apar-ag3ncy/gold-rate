@@ -6,7 +6,7 @@
 | 2 Creative + preview + test send | ✅ done (17 Sep 2026) | 23 shared + 41 API tests passing; typecheck + web build OK; browser walkthrough OK |
 | 3 Scheduler | ✅ done (17 Sep 2026) | 35 shared + 60 API tests passing (fake-clock scheduler suite); typecheck + web build OK; worker smoke-run OK; dashboard verified |
 | 4A Meta publishers, webhooks, integrations, subscribers | ✅ done (17 Sep 2026) | 41 shared + 78 API tests passing (all Meta HTTP mocked); typecheck + web build OK; DRY_RUN stays default |
-| 4B Staff share PWA (/staff) | not started | web push, Web Share API, Mark posted, 30-min reminder |
+| 4B Staff share PWA + admin alert notifications | ✅ done (18 Sep 2026) | 42 shared + 91 API tests passing; typecheck + web build OK; staff flow verified in browser |
 | 5 RATE auto-reply | not started | |
 | 6 Dashboard | not started | |
 | 7 Hardening + deploy | not started | |
@@ -146,6 +146,44 @@ reached / error mapping; WA batch success, partial failure + invalid marking, re
 scheduler (permanent error → 1 attempt) and "not connected" failure; webhook verify token, signatures, status updates (order + duplicates),
 JOIN/STOP/duplicates; integrations API (token never in responses / DB / audit), test connection, health alerts; subscribers API + CSV import; settings template validation.
 
+## Phase 4B – what was built
+**Staff share app** – `apps/web/app/staff/page.tsx` (mobile-first, own layout, staff + admin roles; staff logins land here).
+- Installable PWA: `app/manifest.ts` (`/manifest.webmanifest`), `public/sw.js` (push + notification click, **no** caching of rate data),
+  icons in `public/icons`, Apple meta tags in the root layout. Middleware lets `/sw.js`, the manifest and icons through without a session.
+- `GET /staff/today` (`services/staff.ts → staffToday`) returns images + caption + the three manual tasks only when today's rate is
+  approved/sent **and** the manual delivery rows exist; otherwise `{ready:false, reason}` with no rate values (no_rate / not_approved /
+  cancelled / before_send_time / skipped / staff_share_off). RULE 2 holds: yesterday's rate is never shown.
+- Manual tasks = `deliveries` rows (`pending_manual`) for `ig_broadcast_manual`, `wa_channel_manual`, `wa_community_manual`
+  (new channel), created by the Phase 3 pipeline only after approval at send time / Send Now – idempotent keys, never duplicated.
+- Share: Web Share API with the JPEG file + caption (caption also copied to the clipboard), fallbacks Copy caption / Save image /
+  WhatsApp / Instagram deep links, story image + caption in expanders. One card per channel with **Mark posted**
+  (`POST /staff/tasks/:id/mark-posted`, alias `POST /deliveries/:id/mark-posted`; staff/admin; exactly once → 409 after).
+- Web push: `POST/DELETE /staff/push/subscribe`, `GET /staff/push/vapid-public-key`; `services/push.ts` (web-push, VAPID from env,
+  dead endpoints 404/410 removed). Pushes: "Today's gold rate is ready to share" right after the manual rows are created, and a
+  reminder when a task is still pending after `settings.manualReminderMinutes` (default 30) – once per task, plus a `manual_pending`
+  alert per channel (`remindPendingManual` runs inside every scheduler tick). iPhone note: push works only from the Home-Screen app
+  – the page says so and shows Add-to-Home-Screen steps for iPhone (Safari → Share → Add to Home Screen) and Android (Chrome menu → Install).
+- Admin dashboard: Today's delivery lists each manual task with pending / posted by whom at what time; the header has a **Staff app** link.
+
+**Admin alert notifications** – `services/notify.ts` + `setAlertNotifier()` (API and worker). Every `raiseAlert` (rate_missing,
+send_failed, **partial_send** (new), token_expiring, manual_pending, health_check, day_skipped) fans out to
+`settings.adminAlerts.emails` via SMTP (`SMTP_*` env, nodemailer) and to `settings.adminAlerts.whatsappNumbers` (stored encrypted,
+shown masked) via an approved **utility** template (`adminAlerts.templateName/Language`, {{1}} title, {{2}} message) – DRY_RUN → logged.
+De-dup: same type + same date notified at most once per 30 min (`ALERT_NOTIFY_WINDOW_MIN`); the skip is recorded on the alert.
+Every attempt is stored in `alert.notifications[]`. API: `GET /alerts?status&type&date` (+ `openCount`), `GET /alerts/count`, ack.
+Dashboard: **Alerts** page (filters, acknowledge, ack all, notification trail), unacknowledged count badge in the header nav.
+Settings: reminder minutes, alert emails, admin WhatsApp numbers, alert template.
+
+**Dependencies added** (as agreed): `web-push`, `nodemailer` (+ `@types/*`).
+**Dev helper**: `npm run dev:mongo` – in-memory MongoDB on 27017 for machines without Docker (`apps/api/scripts/dev-mongo.mjs`).
+
+**Tests** – `apps/api/test/staff.test.ts` (push + mail transports injected, fake `Date`): subscription save/remove/roles/validation;
+no tasks + no rate values before send time, tasks + push at send time, no duplicates; never an old rate (yesterday sent, today
+missing/draft/cancelled); staff share OFF; Mark posted (roles, once, who/when, dashboard view, non-manual rows rejected);
+reminder timing (default + custom minutes, once per task, stops when posted), dead endpoints removed; alert fan-out (email + WhatsApp
+dry-run recorded), 30-min de-dup across type/date, partial_send vs send_failed, SMTP missing → skipped, count/filter endpoints,
+encrypted admin numbers + validation.
+
 ## How to run / test
 ```bash
 npm install
@@ -155,9 +193,19 @@ NEXT_DIST_DIR=.next-build npm run build:web   # build without clobbering a runni
 npm run dev:api       # needs MongoDB (docker compose up -d) and .env; images land in ./uploads
 npm run dev:web
 npm run dev:worker   # scheduler (Phase 3)
+npm run dev:mongo    # optional: in-memory MongoDB when Docker is not available
 ```
 Browser: log in → Enter Rate → save a rate → **Preview image** → **Copy caption** → **Test Send** (confirm) → Dashboard shows the test delivery.
 Settings → edit the caption template (try an unknown placeholder to see it blocked) → Save.
+
+## Test the staff flow on a phone (Phase 4B)
+1. Run the stack; expose the web app to the phone (same Wi-Fi: `http://<mac-ip>:3000`, or a tunnel with https – push needs https or localhost).
+   Set `WEB_ORIGIN` / `WEB_PUBLIC_URL` to that URL and restart the API. Generate push keys: `npx web-push generate-vapid-keys` → `.env`.
+2. Create a staff user (`role: staff`) and log in on the phone → it opens `/staff`.
+3. iPhone: Safari → Share → Add to Home Screen → open the app → **Turn on notifications**. Android: Chrome → Install app → same.
+4. Admin: enter + approve today's rate, then **Send now** (or wait for the send time). The phone gets "Today's gold rate is ready to share".
+5. On the phone: **Share image + caption** → pick Instagram / WhatsApp → post → back in the app tap **Mark posted** for that channel.
+6. Leave one channel unposted for 30 min (or set the reminder to 5 min in Settings) → reminder push + `manual_pending` alert on the dashboard.
 
 ## Go-live checklist (Phase 4A)
 1. `.env`: `ENCRYPTION_KEY` (openssl rand -base64 32), `META_GRAPH_VERSION`, `META_APP_ID`, `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`,

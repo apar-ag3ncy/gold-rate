@@ -14,8 +14,8 @@ export default function LoginPage() {
     e.preventDefault();
     setBusy(true); setError('');
     try {
-      await api('/auth/login', { method: 'POST', body: { email, password } });
-      router.replace('/');
+      const r = await api<{ user: { role: string } }>('/auth/login', { method: 'POST', body: { email, password } });
+      router.replace(r.user.role === 'staff' ? '/staff' : '/');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not reach the server');
     } finally { setBusy(false); }

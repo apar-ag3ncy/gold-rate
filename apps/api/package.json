@@ -8,7 +8,8 @@
     "start": "tsx --env-file=../../.env src/server.ts",
     "seed": "tsx --env-file=../../.env src/seed.ts",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "dev:mongo": "node scripts/dev-mongo.mjs"
   },
   "dependencies": {
     "@chheda/shared": "*",
@@ -18,15 +19,19 @@
     "express-rate-limit": "^7.4.1",
     "helmet": "^8.0.0",
     "mongoose": "^8.8.0",
+    "nodemailer": "^6.10.1",
     "pino": "^9.5.0",
     "pino-http": "^10.3.0",
     "sharp": "^0.35.4",
+    "web-push": "^3.6.7",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.7",
     "@types/express": "^5.0.0",
+    "@types/nodemailer": "^6.4.24",
     "@types/supertest": "^6.0.2",
+    "@types/web-push": "^3.6.4",
     "mongodb-memory-server": "^10.1.2",
     "supertest": "^7.0.0",
     "tsx": "^4.19.2",

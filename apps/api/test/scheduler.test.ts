@@ -63,20 +63,20 @@ describe('scheduler tick – timing rules', () => {
   it('sends the approved rate at the send time on every enabled channel, once', async () => {
     await approvedToday();
     const r = await tick(ist(today, '07:00'), deps);
-    expect(r.send).toMatchObject({ action: 'sent', channels: { ig_feed: 'success', ig_story: 'success', wa_customers: 'success', ig_broadcast_manual: 'pending_manual', wa_channel_manual: 'pending_manual' } });
+    expect(r.send).toMatchObject({ action: 'sent', channels: { ig_feed: 'success', ig_story: 'success', wa_customers: 'success', ig_broadcast_manual: 'pending_manual', wa_channel_manual: 'pending_manual', wa_community_manual: 'pending_manual' } });
     const rate = await Rate.findOne({ date: today });
     expect(rate!.status).toBe('sent');
     const ds = await Delivery.find({ date: today }).sort({ channel: 1 });
     expect(ds.map((d) => `${d.channel}:${d.status}:${d.idempotencyKey}`)).toEqual([
       `ig_broadcast_manual:pending_manual:${today}:ig_broadcast_manual`, `ig_feed:success:${today}:ig_feed`, `ig_story:success:${today}:ig_story`,
-      `wa_channel_manual:pending_manual:${today}:wa_channel_manual`, `wa_customers:success:${today}:wa_customers`]);
+      `wa_channel_manual:pending_manual:${today}:wa_channel_manual`, `wa_community_manual:pending_manual:${today}:wa_community_manual`, `wa_customers:success:${today}:wa_customers`]);
     expect(pubs.ig_feed.calls[0]).toMatchObject({ date: today, rate: { k24: 11250, k22: 10305.5, k18: 8437 } });
     expect(pubs.ig_feed.calls[0].caption).toContain('₹10,305.5');
     // a later re-check does not send again (idempotency + status sent)
     const again = await tick(ist(today, '07:15'), deps);
     expect(again.send).toEqual({ action: 'already_sent' });
     expect(pubs.ig_feed.calls).toHaveLength(1);
-    expect(await Delivery.countDocuments({ date: today })).toBe(5);
+    expect(await Delivery.countDocuments({ date: today })).toBe(6);
     expect((await SendDay.findOne({ date: today }))!.status).toBe('sent');
   });
   it('automation OFF → logs skipped, sends nothing, no alert', async () => {
@@ -186,7 +186,7 @@ describe('retries, backoff and partial failure', () => {
     expect(failed!.error).toMatch(/boom/);
     expect((await Rate.findOne({ date: today }))!.status).toBe('approved');
     expect((await SendDay.findOne({ date: today }))!.status).toBe('partial');
-    expect(await Alert.countDocuments({ type: 'send_failed', date: today })).toBe(1);
+    expect(await Alert.countDocuments({ type: 'partial_send', date: today })).toBe(1);
   });
   it('Send Now retries only the failed channel and then marks the rate sent', async () => {
     await approvedToday();

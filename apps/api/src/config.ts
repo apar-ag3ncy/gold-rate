@@ -31,9 +31,22 @@ const schema = z.object({
   WA_SEND_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(5),
   WA_SEND_DELAY_MS: z.coerce.number().int().min(0).max(5000).default(100),
   IG_PUBLISH_TIMEOUT_MS: z.coerce.number().int().min(10_000).max(600_000).default(120_000),
+
+  // ---- Web push + email (Phase 4B) ----
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default('mailto:admin@chhedajewellers.com'),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().default(587),
+  SMTP_SECURE: z.string().default('false').transform((v) => v === 'true'),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
+  /** Public URL of the dashboard – used in push notifications and alert emails. */
+  WEB_PUBLIC_URL: z.string().optional(),
 });
 
-export type Config = z.infer<typeof schema> & { MEDIA_BASE_URL: string };
+export type Config = z.infer<typeof schema> & { MEDIA_BASE_URL: string; WEB_PUBLIC_URL: string };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = schema.safeParse(env);
@@ -55,5 +68,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (cfg.NODE_ENV === 'production' && cfg.STORAGE_DRIVER === 'local' && !cfg.MEDIA_BASE_URL) {
     throw new Error('MEDIA_BASE_URL is required in production (Instagram must be able to fetch the image)');
   }
-  return { ...cfg, MEDIA_BASE_URL: (cfg.MEDIA_BASE_URL ?? `http://localhost:${cfg.API_PORT}`).replace(/\/+$/, '') };
+  return { ...cfg, MEDIA_BASE_URL: (cfg.MEDIA_BASE_URL ?? `http://localhost:${cfg.API_PORT}`).replace(/\/+$/, ''), WEB_PUBLIC_URL: (cfg.WEB_PUBLIC_URL ?? cfg.WEB_ORIGIN).replace(/\/+$/, '') };
 }

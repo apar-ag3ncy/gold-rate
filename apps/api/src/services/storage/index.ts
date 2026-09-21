@@ -3,9 +3,11 @@ import type { Config } from '../../config';
 import { LocalStorage } from './local';
 import { S3Storage } from './s3';
 import { CloudinaryStorage } from './cloudinary';
+import { MongoStorage } from './mongo';
 import type { StorageAdapter } from './types';
 
 export type { StorageAdapter, SaveResult } from './types';
+export { MongoStorage } from './mongo';
 
 export function createStorage(cfg: Config): StorageAdapter {
   if (cfg.STORAGE_DRIVER === 'cloudinary') {
@@ -14,6 +16,7 @@ export function createStorage(cfg: Config): StorageAdapter {
   if (cfg.STORAGE_DRIVER === 's3') {
     return new S3Storage({ bucket: cfg.S3_BUCKET!, region: cfg.S3_REGION!, prefix: cfg.S3_PREFIX, publicBaseUrl: cfg.S3_PUBLIC_BASE_URL });
   }
+  if (cfg.STORAGE_DRIVER === 'mongo') return new MongoStorage(cfg.MEDIA_BASE_URL);
   return new LocalStorage(cfg.MEDIA_DIR, cfg.MEDIA_BASE_URL);
 }
 

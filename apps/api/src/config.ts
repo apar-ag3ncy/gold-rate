@@ -10,7 +10,7 @@ const schema = z.object({
   DRY_RUN: z.string().default('true').transform((v) => v !== 'false'),
 
   // ---- media storage (Phase 2) ----
-  STORAGE_DRIVER: z.enum(['local', 's3', 'cloudinary']).default('local'),
+  STORAGE_DRIVER: z.enum(['local', 's3', 'cloudinary', 'mongo']).default('local'),   // mongo = images in MongoDB (serverless hosts)
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),
@@ -59,6 +59,8 @@ const schema = z.object({
   IBJA_API_TOKEN: z.string().optional(),
   IBJA_API_BASE: z.string().default('https://ibjarates.com'),      // https://uat.ibjarates.com for the UAT key
   IBJA_WEBSITE_URL: z.string().default('https://ibjarates.com/'),
+  /** Serverless hosting: GET /api/v1/internal/tick with `Authorization: Bearer <CRON_SECRET>` runs the worker's minute tick. */
+  CRON_SECRET: z.string().min(16, 'CRON_SECRET must be at least 16 characters').optional(),
   /** No login screen: every request without a session runs as this user. Anyone who can reach the dashboard acts as them – keep the address private. */
   AUTO_LOGIN_EMAIL: z.string().email().optional(),
   /** Older name for AUTO_LOGIN_EMAIL (still accepted). */
@@ -84,7 +86,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (!cfg.WEB_ORIGIN.startsWith('https://')) problems.push('WEB_ORIGIN must be https');
     if (cfg.MEDIA_BASE_URL && !cfg.MEDIA_BASE_URL.startsWith('https://')) problems.push('MEDIA_BASE_URL must be https (Instagram fetches images from it)');
     // local storage is fine on a single always-on server as long as the images are reachable over https (Instagram fetches them)
-    if (cfg.STORAGE_DRIVER === 'local' && !cfg.MEDIA_BASE_URL) problems.push('STORAGE_DRIVER=local needs MEDIA_BASE_URL=https://<your domain> (the API serves the images at /media)');
+    if ((cfg.STORAGE_DRIVER === 'local' || cfg.STORAGE_DRIVER === 'mongo') && !cfg.MEDIA_BASE_URL) problems.push(`STORAGE_DRIVER=${cfg.STORAGE_DRIVER} needs MEDIA_BASE_URL=https://<api domain> (the API serves the images at /media)`);
     if (cfg.STORAGE_DRIVER === 'local' && cfg.MEDIA_BASE_URL?.startsWith('https://')) console.warn('WARN: STORAGE_DRIVER=local – images live on this server only (fine for one server; use cloudinary for a CDN)');
     if (!cfg.SENTRY_DSN) console.warn('WARN: SENTRY_DSN is not set – errors will only be in the logs');
     if (!cfg.VAPID_PUBLIC_KEY) console.warn('WARN: VAPID keys not set – staff push notifications are disabled');

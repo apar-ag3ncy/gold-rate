@@ -13,6 +13,23 @@
 | Simplified dashboard (2 screens) | ✅ done (21 Sep 2026) | Rate + Automation only; typecheck + web build OK; both screens checked in browser |
 | Free hosting: Oracle Always Free, one server | ✅ done (21 Sep 2026) | `deploy/oracle/setup.sh` + `docs/DEPLOY-ORACLE.md`; Send now button; local images allowed over https; scripts reviewed |
 | No login screen + renamed to "Gold rate" | ✅ done (21 Sep 2026) | login page and gate removed; AUTO_LOGIN_EMAIL allowed in production; shop name removed from the dashboard |
+| Vercel-only hosting (₹0) | ✅ done (21 Sep 2026) | API as a Vercel function (`apps/api/api/index.ts`), `STORAGE_DRIVER=mongo`, `/api/v1/internal/tick` for cron-job.org; 4 new tests; `docs/DEPLOY-VERCEL.md` |
+
+## Everything on Vercel for ₹0 (21 Sep 2026)
+The owner deployed the dashboard to Vercel and wanted it to work without any server. Added:
+- `apps/api/api/index.ts` – the Express app as one Vercel serverless function (connects to Mongo once per cold start);
+  `apps/api/vercel.json` rewrites every path to it, `maxDuration` 60 s, bundles `assets/**` (fonts for sharp). Root Directory `apps/api`.
+- `STORAGE_DRIVER=mongo` – `MongoStorage` keeps the rendered JPEGs in a `media` collection (write-once by unique key, never
+  overwritten) and the API serves them at `/media/<key>` with immutable caching and `Cross-Origin-Resource-Policy: cross-origin`
+  so Instagram and the dashboard can fetch them. Production requires an https `MEDIA_BASE_URL` (the API's own address).
+- `GET|POST /api/v1/internal/tick` – runs the worker's minute `tick()` under the Mongo job lock; auth = `Authorization: Bearer
+  <CRON_SECRET>` (constant-time compare), 404 when `CRON_SECRET` is unset. If today has no send attempt yet and we are inside the
+  send window it also runs the worker's missed-run recovery, so a cron call that lands a minute late still posts. Meant for
+  cron-job.org every minute (Vercel Cron on Hobby allows only daily jobs).
+- Tests (`apps/api/test/serverless.test.ts`): storage write-once + `/media` bytes/headers + unsafe keys, preview → image round trip
+  through the mongo driver, tick auth/404/200. Also exercised the entry locally as a plain HTTP server against Atlas.
+- Docs: `docs/DEPLOY-VERCEL.md` (two projects, env table, cron-job.org, limits). Not verified on Vercel itself in this session –
+  first deploy is the owner's; the `/health` and Logs checks in the guide tell what is wrong if anything.
 
 ## No login screen, dashboard renamed "Gold rate" (21 Sep 2026)
 Owner's decision, after being told the risk: **the dashboard has no login page.** Every request without a session runs as the user

@@ -10,6 +10,8 @@ import type { Config } from './config';
 import { logger } from './lib/logger';
 import { HttpError } from './lib/errors';
 import { csrfGuard, loadUser, setDevAutoLogin } from './middleware/auth';
+import { internalRouter } from './routes/internal';
+import type { MongoStorage } from './services/storage/mongo';
 import { authRouter } from './routes/auth';
 import { ratesRouter } from './routes/rates';
 import { settingsRouter } from './routes/settings';
@@ -63,6 +65,26 @@ export function createApp(cfg: Config, deps: AppDeps = {}) {
       express.static(cfg.MEDIA_DIR, { index: false, dotfiles: 'deny', immutable: true, maxAge: '365d' }),
       (_req: express.Request, res: express.Response) => { res.status(404).json({ error: 'Media not found' }); });
   }
+
+  if (storage.driver === 'mongo') {
+    // images stored in MongoDB (serverless hosting) – same public contract as the local driver
+    app.use('/media', async (req, res, next) => {
+      if (req.method !== 'GET' && req.method !== 'HEAD') { next(); return; }
+      try {
+        const key = decodeURIComponent(req.path.replace(/^\/+/, ''));
+        const file = await (storage as MongoStorage).get(key).catch(() => null);
+        if (!file) { res.status(404).json({ error: 'Media not found' }); return; }
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        res.setHeader('Content-Type', file.contentType);
+        res.setHeader('Content-Length', String(file.size));
+        if (req.method === 'HEAD') res.end(); else res.end(file.data);
+      } catch (e) { next(e); }
+    });
+  }
+
+  // Cron-triggered scheduler tick for serverless hosting (secret header, no session / CSRF)
+  app.use('/api/v1/internal', internalRouter(cfg, { storage, fetchFn: deps.fetchFn }));
 
   // Meta webhooks: signature-verified, no session / CSRF (Meta cannot send either)
   app.use('/api/v1/webhooks', rateLimit({ windowMs: 60_000, limit: cfg.NODE_ENV === 'test' ? 10_000 : 600, standardHeaders: true, legacyHeaders: false }), webhooksRouter(cfg));

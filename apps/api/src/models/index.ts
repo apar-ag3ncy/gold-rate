@@ -12,3 +12,4 @@ export * from './Subscriber';
 export * from './WebhookEvent';
 export * from './PushSubscription';
 export * from './IbjaRate';
+export * from './Media';

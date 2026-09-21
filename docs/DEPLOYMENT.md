@@ -1,6 +1,10 @@
 # Deployment – Chheda Gold Rate Automation
 
-Target: **API + worker on an Ubuntu VPS** (systemd + Nginx + Let's Encrypt), **dashboard on Vercel**, **MongoDB Atlas**, **Cloudinary** for images.
+**Recommended (₹0): everything on one free Oracle Cloud server – see `docs/DEPLOY-ORACLE.md`** (one script: `deploy/oracle/setup.sh`;
+dashboard + API + worker behind Nginx on a single https domain; images served from the same server; MongoDB Atlas free tier).
+
+The rest of this file is the split alternative: **API + worker on a paid Ubuntu VPS** (systemd + Nginx + Let's Encrypt), **dashboard on Vercel**,
+**MongoDB Atlas**, **Cloudinary** for images. Both use the same code; `deploy/deploy.sh` detects which one is installed.
 Domains used below (replace with yours): `api.chhedajewellers.com` (API), `rate.chhedajewellers.com` (dashboard).
 
 ## 0. Accounts you need
@@ -103,7 +107,7 @@ The dashboard runs **Next.js 16** (Node ≥ 20.9; Turbopack; the request gate li
 ```bash
 ssh chheda@<vps> 'cd /opt/chheda/app && ./deploy/deploy.sh'
 ```
-`deploy.sh` pulls `main`, installs, runs the env check, restarts both services and verifies `/health`; if the health check fails it **rolls back** to the previous commit automatically.
+`deploy.sh` pulls `main`, installs, runs the env check, rebuilds the dashboard when it runs on the same server, restarts the services and verifies `/health`; if the health check fails it **rolls back** to the previous commit automatically.
 Vercel deploys the dashboard on every push to `main` (CI must be green first – `.github/workflows/ci.yml`).
 
 ## 9. Rolling back
@@ -120,9 +124,7 @@ Vercel deploys the dashboard on every push to `main` (CI must be green first –
 ## 11. Manual smoke test after every deploy (5 minutes)
 1. `curl https://api.chhedajewellers.com/health` → `ok:true, db:up`; VPS `curl 127.0.0.1:4100/ready` → `ok:true`.
 2. Open `https://rate.chhedajewellers.com` → login page loads with the emerald theme; log in as admin.
-3. Dashboard banner shows today's state; Alerts badge count matches the Alerts page.
-4. Enter Rate → save tomorrow's rate → **Preview image** renders both images (URLs on `res.cloudinary.com`) → **Test Send** → appears under Today's delivery as DRY RUN.
-5. Settings → Connections → **Test connection** on both channels → "Connected".
-6. `/staff` on a phone → shows "Nothing to share yet" or today's rate → Mark posted works.
-7. Send a signed test webhook or a real "rate" WhatsApp message (after go-live) → row in Deliveries → Keyword replies.
-8. Check Sentry shows the release and no new errors; check `tail -f /var/log/chheda/worker.log` prints a tick within a minute.
+3. Rate page shows today's status line and the IBJA card.
+4. Save tomorrow's rate → **Preview post** renders both images → Approve → (today only) **Send now** shows each channel as DRY RUN.
+5. Automation → **Test** on both connections → "Connected".
+6. Check Sentry shows the release and no new errors; check `tail -f /var/log/chheda/worker.log` prints a tick within a minute.

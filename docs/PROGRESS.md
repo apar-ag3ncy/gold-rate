@@ -11,6 +11,25 @@
 | 6 Dashboard completion | ✅ done (18 Sep 2026) | 47 shared + 115 API tests passing; typecheck + web build OK; all screens checked in browser |
 | 7 Hardening, deployment, go-live readiness | ✅ done (18 Sep 2026) | 47 shared + 122 API tests; typecheck + web build OK; deploy files, DEPLOYMENT/RUNBOOK/GO-LIVE docs |
 | Simplified dashboard (2 screens) | ✅ done (21 Sep 2026) | Rate + Automation only; typecheck + web build OK; both screens checked in browser |
+| Free hosting: Oracle Always Free, one server | ✅ done (21 Sep 2026) | `deploy/oracle/setup.sh` + `docs/DEPLOY-ORACLE.md`; Send now button; local images allowed over https; scripts reviewed |
+
+## Free hosting on one Oracle Cloud server (21 Sep 2026)
+The owner does not want a monthly server bill, so the deployment target became **one Oracle Cloud "Always Free" VM** running all three
+programs (API :4000, worker :4100, dashboard :3000) behind Nginx on a single https name (free DuckDNS sub-domain or an own domain).
+- `deploy/oracle/setup.sh` – one re-runnable script: swap on small VMs, Node 24, Oracle's iptables (80/443), `chheda` user, clone/update,
+  `npm ci`, generated `.env` (encryption key, webhook token, domain-based URLs; asks only for the Atlas string and the admin login), env check,
+  seed, `next build`, three systemd units, nginx site, certbot, optional mongodump + nightly cron, health checks.
+- `deploy/systemd/chheda-web.service` (new) runs `next start`; API/worker units now run `tsx` from `node_modules/.bin` (npx would try to
+  download the dev dependency at boot). `deploy/deploy.sh` installs all deps, rebuilds the dashboard when the web unit is enabled and
+  health-checks all three before declaring success (rollback otherwise).
+- `deploy/nginx/chheda-site.conf` – single-domain config: `/api/v1/*` and `/media/*` and `/health` → API, everything else → Next.
+- Config: `STORAGE_DRIVER=local` is now allowed in production when `MEDIA_BASE_URL` is https (images served by the API from the same
+  server, Instagram fetches them over https). Cloudinary stays optional. Tests updated.
+- Rate page: **Send now** (admin, today, approved only) – confirms with the channel list from `GET /send/plan`, calls `POST /send/now`,
+  shows per-channel results; label says "(dry run)" while `DRY_RUN=true`. Manual routine: Refresh → Use IBJA rates → Save → Approve → Send now.
+- Docs: `docs/DEPLOY-ORACLE.md` (click-by-click, plain language), DEPLOYMENT.md points to it first, README updated.
+- Not verified on a real Oracle VM yet (no account in this session): the script was syntax-checked, the generated `.env` passes the
+  env checker, the unit/nginx files were reviewed. First real run = follow DEPLOY-ORACLE.md and report the output.
 
 ## Simplified dashboard (21 Sep 2026)
 The owner asked for a plain tool with three things only: manual rate entry per karat, the IBJA rate option, and automation.

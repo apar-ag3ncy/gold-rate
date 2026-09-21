@@ -81,7 +81,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (!cfg.ENCRYPTION_KEY) problems.push('ENCRYPTION_KEY is required (openssl rand -base64 32)');
     if (!cfg.WEB_ORIGIN.startsWith('https://')) problems.push('WEB_ORIGIN must be https');
     if (cfg.MEDIA_BASE_URL && !cfg.MEDIA_BASE_URL.startsWith('https://')) problems.push('MEDIA_BASE_URL must be https (Instagram fetches images from it)');
-    if (cfg.STORAGE_DRIVER === 'local') problems.push('STORAGE_DRIVER=local is not suitable for production – use cloudinary');
+    // local storage is fine on a single always-on server as long as the images are reachable over https (Instagram fetches them)
+    if (cfg.STORAGE_DRIVER === 'local' && !cfg.MEDIA_BASE_URL) problems.push('STORAGE_DRIVER=local needs MEDIA_BASE_URL=https://<your domain> (the API serves the images at /media)');
+    if (cfg.STORAGE_DRIVER === 'local' && cfg.MEDIA_BASE_URL?.startsWith('https://')) console.warn('WARN: STORAGE_DRIVER=local – images live on this server only (fine for one server; use cloudinary for a CDN)');
     if (!cfg.SENTRY_DSN) console.warn('WARN: SENTRY_DSN is not set – errors will only be in the logs');
     if (!cfg.VAPID_PUBLIC_KEY) console.warn('WARN: VAPID keys not set – staff push notifications are disabled');
     if (!cfg.SMTP_HOST) console.warn('WARN: SMTP_HOST not set – admin alert emails are disabled');

@@ -2,7 +2,8 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { addDays, buildCaption, DEFAULT_CAPTION_TEMPLATE, istDate, rateFormIsDirty, rateToForm, typedToNumber } from '@chheda/shared';
-import { api, ApiError, fmtDate, fmtTime, perGram } from '@/lib/api';
+import { api, ApiError, channelLabel, fmtDate, fmtTime, perGram } from '@/lib/api';
+import { useSession } from '@/components/Shell';
 import { Alert } from '@/components/Alert';
 import { StatusBadge } from '@/components/StatusBadge';
 import { CardSkeleton, ErrorState, LoadingGuard } from '@/components/ui';
@@ -15,6 +16,8 @@ type Ibja = { latest: { rateDate: string; session: 'AM' | 'PM'; perGram: { k24: 
 type Summary = { today: string; todayRate: Rate | null };
 type Cfg = { automationOn: boolean; sendTime: string; cutoffTime: string };
 type Day = { status: string; reason?: string; sentAt?: string } | null;
+type Plan = { dryRun: boolean; canSend: boolean; reason?: string; subscribers: number; channels: { channel: string; enabled: boolean; alreadySent: boolean; recipients?: number; manual?: boolean }[] };
+type SendResult = { action: string; reason?: string; channels?: Record<string, string> };
 const empty: Form = { k24: '', k22: '', k18: '', extraPurities: [], overrideReason: '' };
 
 function RateScreen() {
@@ -36,6 +39,9 @@ function RateScreen() {
   const [ibjaBusy, setIbjaBusy] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
+  const [plan, setPlan] = useState<Plan | null>(null);
+  const [sending, setSending] = useState(false);
+  const { me } = useSession();
 
   const loadIbja = useCallback(() => api<Ibja>('/ibja/latest').then(setIbja).catch(() => {}), []);
   const loadStatus = useCallback(() => Promise.all([api<Summary>('/rates/summary'), api<{ settings: Cfg & { captionTemplate: string } }>('/settings'), api<{ day: Day }>('/deliveries')])
@@ -54,6 +60,8 @@ function RateScreen() {
   }, []);
   useEffect(() => { loadIbja(); loadStatus(); }, [loadIbja, loadStatus]);
   useEffect(() => { load(date); router.replace(`/?date=${date}`); }, [date, load, router]);
+  const canSendNow = me?.role === 'admin' && date === today && rate?.status === 'approved';
+  useEffect(() => { if (canSendNow) api<Plan>('/send/plan').then(setPlan).catch(() => setPlan(null)); else setPlan(null); }, [canSendNow, rate?.status]);
 
   const locked = rate?.status === 'sent'; const past = date < today; const readOnly = locked || past;
   const dirty = rateFormIsDirty(form, rate);
@@ -79,6 +87,24 @@ function RateScreen() {
     const reason = window.prompt('Why are you cancelling this rate? (Nothing will be posted for this date)'); if (!reason) return;
     try { const r = await api<{ rate: Rate }>(`/rates/${date}/cancel`, { method: 'POST', body: { reason } }); setRate(r.rate); setMsg({ kind: 'warning', title: 'Cancelled. Nothing will be posted for this date.' }); loadStatus(); }
     catch (e) { setMsg({ kind: 'error', title: (e as Error).message }); }
+  }
+  async function sendNow() {
+    if (!rate || !plan) return;
+    const targets = plan.channels.filter((c) => c.enabled && !c.manual && !c.alreadySent).map((c) => `• ${channelLabel[c.channel] ?? c.channel}${c.recipients != null ? ` (${c.recipients} numbers)` : ''}`);
+    if (!targets.length) { setMsg({ kind: 'warning', title: 'Nothing to send – every channel is switched off or already sent today.' }); return; }
+    if (!window.confirm(`Send today's rate now?\n\n24K ${perGram(rate.k24)}\n22K ${perGram(rate.k22)}\n18K ${perGram(rate.k18)}\n\nGoes to:\n${targets.join('\n')}${plan.dryRun ? '\n\nDRY RUN is on: this is a rehearsal, nothing is really posted.' : ''}`)) return;
+    setSending(true); setMsg(null);
+    try {
+      const r = await api<{ dryRun: boolean; result: SendResult }>('/send/now', { method: 'POST' });
+      const ch = Object.entries(r.result.channels ?? {}).map(([c, st]) => `${channelLabel[c] ?? c}: ${st}`);
+      const outcome: typeof msg = r.result.action === 'sent' ? { kind: 'success', title: r.dryRun ? 'Dry run finished – nothing was really posted.' : 'Sent.', items: ch }
+        : r.result.action === 'partial' ? { kind: 'warning', title: 'Sent on some channels only. Fix the failed one and press Send again – successful channels are never repeated.', items: ch }
+        : r.result.action === 'already_sent' ? { kind: 'success', title: 'Already sent today on every channel.' }
+        : { kind: 'error', title: r.result.reason ?? `Could not send (${r.result.action}).` };
+      await load(date); loadStatus();   // load() clears the message, so show the outcome afterwards
+      setMsg(outcome);
+    } catch (e) { setMsg({ kind: 'error', title: e instanceof ApiError && e.status === 423 ? 'A send is already running – wait a minute and reload.' : (e as Error).message }); }
+    finally { setSending(false); }
   }
   function useIbja() {
     if (!ibja?.latest) return;
@@ -163,7 +189,8 @@ function RateScreen() {
           <div className="divider-gold" />
           <div className="flex flex-wrap items-center gap-2">
             {!readOnly && <button className="btn-primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : rate ? 'Update rate' : 'Save rate'}</button>}
-            {!readOnly && <button className="btn-secondary" onClick={approve} disabled={busy || rate?.status !== 'draft' || dirty} title={dirty ? 'Save your changes first' : undefined}>✓ Approve</button>}
+            {!readOnly && rate?.status !== 'approved' && <button className="btn-secondary" onClick={approve} disabled={busy || rate?.status !== 'draft' || dirty} title={dirty ? 'Save your changes first' : undefined}>✓ Approve</button>}
+            {canSendNow && <button className="btn-primary" onClick={sendNow} disabled={sending || busy || dirty || !plan} title={dirty ? 'Save your changes first' : undefined}>{sending ? 'Sending…' : plan?.dryRun ? 'Send now (dry run)' : 'Send now'}</button>}
             <button className="btn-secondary" onClick={doPreview} disabled={previewBusy || busy || (past && !rate)}>{previewBusy ? 'Rendering…' : 'Preview post'}</button>
             {!readOnly && rate && rate.status !== 'cancelled' && <button className="btn-danger ml-auto" onClick={cancel} disabled={busy}>Cancel rate</button>}
           </div>

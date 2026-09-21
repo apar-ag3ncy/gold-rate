@@ -1,0 +1,27 @@
+# /etc/systemd/system/chheda-web.service – the dashboard (Next.js) on the same server as the API
+[Unit]
+Description=Chheda Gold Rate – dashboard
+After=network-online.target chheda-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=chheda
+WorkingDirectory=/opt/chheda/app/apps/web
+Environment=NODE_ENV=production
+Environment=API_INTERNAL_URL=http://127.0.0.1:4000
+Environment=NEXT_TELEMETRY_DISABLED=1
+Environment=PORT=3000
+ExecStart=/opt/chheda/app/node_modules/.bin/next start -p 3000
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/chheda/web.log
+StandardError=append:/var/log/chheda/web.log
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/chheda/app/apps/web/.next /var/log/chheda
+
+[Install]
+WantedBy=multi-user.target

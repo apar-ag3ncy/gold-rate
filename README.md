@@ -3,7 +3,7 @@
 Admin enters the daily gold rate (or takes the IBJA benchmark) → approves → the system posts it automatically at the scheduled time
 (Instagram Feed/Story + WhatsApp opted-in customers).
 
-**Current status: all 7 phases done** – see `docs/DEPLOYMENT.md`, `docs/GO-LIVE.md`, `docs/RUNBOOK.md`.
+**Current status: all 7 phases done.** Put it online for ₹0 with `docs/DEPLOY-ORACLE.md` (one free Oracle Cloud server, one script). Alternatives in `docs/DEPLOYMENT.md`; go-live steps in `docs/GO-LIVE.md`; day-to-day in `docs/RUNBOOK.md`.
 
 The dashboard has two screens: **Rate** (24K / 22K / 18K per gram, IBJA pre-fill, save → approve, post preview) and **Automation** (on/off, send time, channels, IBJA auto-draft, Instagram/WhatsApp connections, WhatsApp recipients). Under the hood: blocking validation, branded image rendering, scheduler worker with alerts, official Instagram + WhatsApp publishers, webhooks, encrypted subscribers and tokens. Publishing stays in DRY_RUN until Meta credentials are entered.
 

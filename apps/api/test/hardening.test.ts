@@ -48,10 +48,13 @@ describe('config fails fast', () => {
   const base = { NODE_ENV: 'production', MONGO_URI: 'mongodb://x', WEB_ORIGIN: 'https://admin.example.com', MEDIA_BASE_URL: 'https://api.example.com', STORAGE_DRIVER: 'cloudinary', CLOUDINARY_CLOUD_NAME: 'c', CLOUDINARY_API_KEY: 'k', CLOUDINARY_API_SECRET: 's', ENCRYPTION_KEY: TEST_ENCRYPTION_KEY, SENTRY_DSN: 'https://x@o.ingest.sentry.io/1', VAPID_PUBLIC_KEY: 'p', VAPID_PRIVATE_KEY: 'p', SMTP_HOST: 'smtp' } as any;
   it('accepts a complete production env and lists every problem otherwise', () => {
     expect(() => loadConfig(base)).not.toThrow();
-    const bad = () => loadConfig({ ...base, ENCRYPTION_KEY: undefined, WEB_ORIGIN: 'http://x', STORAGE_DRIVER: 'local' });
+    const bad = () => loadConfig({ ...base, ENCRYPTION_KEY: undefined, WEB_ORIGIN: 'http://x', STORAGE_DRIVER: 'local', MEDIA_BASE_URL: undefined });
     expect(bad).toThrow(/ENCRYPTION_KEY is required/);
     expect(bad).toThrow(/WEB_ORIGIN must be https/);
-    expect(bad).toThrow(/STORAGE_DRIVER=local/);
+    expect(bad).toThrow(/STORAGE_DRIVER=local needs MEDIA_BASE_URL/);
+    // single-server setup: local images are allowed when they are served over https
+    expect(() => loadConfig({ ...base, STORAGE_DRIVER: 'local', MEDIA_BASE_URL: 'https://rate.example.com' })).not.toThrow();
+    expect(() => loadConfig({ ...base, STORAGE_DRIVER: 'local', MEDIA_BASE_URL: 'http://rate.example.com' })).toThrow(/MEDIA_BASE_URL must be https/);
     expect(() => loadConfig({ ...base, ENCRYPTION_KEY: 'short' })).toThrow(/32 bytes/);
     expect(() => loadConfig({ ...base, DRY_RUN: 'false' })).toThrow(/META_APP_SECRET/);
     expect(() => loadConfig({ ...base, STORAGE_DRIVER: 'cloudinary', CLOUDINARY_API_SECRET: undefined })).toThrow(/CLOUDINARY/);

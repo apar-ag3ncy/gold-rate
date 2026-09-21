@@ -10,8 +10,8 @@ User=chheda
 WorkingDirectory=/opt/chheda/app
 EnvironmentFile=/opt/chheda/app/.env
 Environment=NODE_ENV=production
-ExecStartPre=/usr/bin/node apps/api/scripts/check-env.mjs /opt/chheda/app/.env
-ExecStart=/usr/bin/npx tsx apps/worker/src/index.ts
+ExecStartPre=/opt/chheda/app/node_modules/.bin/tsx apps/api/scripts/check-env.mjs /opt/chheda/app/.env
+ExecStart=/opt/chheda/app/node_modules/.bin/tsx apps/worker/src/index.ts
 Restart=always
 RestartSec=10
 StandardOutput=append:/var/log/chheda/worker.log

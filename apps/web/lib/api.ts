@@ -30,17 +30,12 @@ async function request<T>(path: string, opts: { method?: string; body?: unknown 
     });
   } catch { throw new ApiError(0, 'Could not reach the server. Check your connection and try again.'); }
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && typeof window !== 'undefined' && !path.startsWith('/auth/login')) {
-    // session expired / logged out elsewhere → back to login with a message, remembering where we were
-    const next = encodeURIComponent(window.location.pathname + window.location.search);
-    window.location.href = `/login?expired=1&next=${next}`;
-  }
   if (!res.ok) throw new ApiError(res.status, friendly(res.status, data.error), data.details);
   return data as T;
 }
 
 const friendly = (status: number, msg?: string) =>
-  msg ?? ({ 403: 'You do not have permission to do this.', 404: 'Not found.', 409: 'This was already done.', 429: 'Too many requests – please wait a moment.', 500: 'Something went wrong on the server. It has been logged.' } as Record<number, string>)[status] ?? 'Request failed';
+  msg ?? ({ 401: 'Not signed in – the server needs AUTO_LOGIN_EMAIL set to an existing admin user.', 403: 'You do not have permission to do this.', 404: 'Not found.', 409: 'This was already done.', 429: 'Too many requests – please wait a moment.', 500: 'Something went wrong on the server. It has been logged.' } as Record<number, string>)[status] ?? 'Request failed';
 
 /** ₹ Indian grouping, exact digits (max 2 decimals as entered). */
 export const inr = (n?: number | null) =>

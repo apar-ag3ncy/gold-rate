@@ -12,6 +12,16 @@
 | 7 Hardening, deployment, go-live readiness | ✅ done (18 Sep 2026) | 47 shared + 122 API tests; typecheck + web build OK; deploy files, DEPLOYMENT/RUNBOOK/GO-LIVE docs |
 | Simplified dashboard (2 screens) | ✅ done (21 Sep 2026) | Rate + Automation only; typecheck + web build OK; both screens checked in browser |
 | Free hosting: Oracle Always Free, one server | ✅ done (21 Sep 2026) | `deploy/oracle/setup.sh` + `docs/DEPLOY-ORACLE.md`; Send now button; local images allowed over https; scripts reviewed |
+| No login screen + renamed to "Gold rate" | ✅ done (21 Sep 2026) | login page and gate removed; AUTO_LOGIN_EMAIL allowed in production; shop name removed from the dashboard |
+
+## No login screen, dashboard renamed "Gold rate" (21 Sep 2026)
+Owner's decision, after being told the risk: **the dashboard has no login page.** Every request without a session runs as the user
+in `AUTO_LOGIN_EMAIL` (the deploy script sets it to the owner's email and creates that user with a random, never-shown password).
+Anyone who can open the address acts as that admin – the guide tells the owner to keep the address private. The old dev-only refusal
+in production is gone; `DEV_AUTO_LOGIN_EMAIL` still works as an alias. Removed: `apps/web/app/login`, `apps/web/proxy.ts` (cookie gate),
+the Log out button, the 401 → /login redirect (401 now shows "Not signed in – set AUTO_LOGIN_EMAIL"). The login screen can be restored
+from commit `d1e5d82` if ever wanted. Branding: header and page title now say "Gold rate"; the shop name no longer appears in the dashboard.
+The posted images and the caption still carry the shop's name (that is customer-facing content, unchanged).
 
 ## Free hosting on one Oracle Cloud server (21 Sep 2026)
 The owner does not want a monthly server bill, so the deployment target became **one Oracle Cloud "Always Free" VM** running all three

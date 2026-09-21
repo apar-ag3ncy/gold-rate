@@ -59,7 +59,9 @@ const schema = z.object({
   IBJA_API_TOKEN: z.string().optional(),
   IBJA_API_BASE: z.string().default('https://ibjarates.com'),      // https://uat.ibjarates.com for the UAT key
   IBJA_WEBSITE_URL: z.string().default('https://ibjarates.com/'),
-  /** DEV ONLY: every request without a session runs as this user (no login screen). Refused in production. */
+  /** No login screen: every request without a session runs as this user. Anyone who can reach the dashboard acts as them – keep the address private. */
+  AUTO_LOGIN_EMAIL: z.string().email().optional(),
+  /** Older name for AUTO_LOGIN_EMAIL (still accepted). */
   DEV_AUTO_LOGIN_EMAIL: z.string().email().optional(),
 });
 
@@ -77,7 +79,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   const problems: string[] = [];
   if (cfg.NODE_ENV === 'production') {
-    if (cfg.DEV_AUTO_LOGIN_EMAIL) problems.push('DEV_AUTO_LOGIN_EMAIL must not be set in production (it disables login)');
+    if (cfg.AUTO_LOGIN_EMAIL ?? cfg.DEV_AUTO_LOGIN_EMAIL) console.warn('WARN: AUTO_LOGIN_EMAIL is set – there is no login screen; anyone who can open the dashboard acts as that user');
     if (!cfg.ENCRYPTION_KEY) problems.push('ENCRYPTION_KEY is required (openssl rand -base64 32)');
     if (!cfg.WEB_ORIGIN.startsWith('https://')) problems.push('WEB_ORIGIN must be https');
     if (cfg.MEDIA_BASE_URL && !cfg.MEDIA_BASE_URL.startsWith('https://')) problems.push('MEDIA_BASE_URL must be https (Instagram fetches images from it)');

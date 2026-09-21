@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { ErrorState } from './ui';
 import { api } from '@/lib/api';
@@ -14,10 +14,9 @@ const nav: { href: string; label: string; exact?: boolean; admin?: boolean }[] =
   { href: '/automation', label: 'Automation' },
 ];
 
-/** Floating cream pill header – same treatment as chhedajewellers.com */
+/** Floating cream pill header */
 export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-  const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [clock, setClock] = useState('');
 
@@ -38,8 +37,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
     t(); const id = setInterval(t, 30_000); return () => clearInterval(id);
   }, []);
 
-  async function logout() { await api('/auth/logout', { method: 'POST' }).catch(() => {}); router.replace('/login'); }
-
   return (
     <div className="min-h-screen">
       <a href="#main" className="sr-only-focusable fixed left-2 top-2 z-50 rounded-full bg-cream px-3 py-1 text-xs text-emerald-900">Skip to content</a>
@@ -47,11 +44,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto max-w-6xl rounded-[28px] border border-emerald-900/10 bg-cream/95 px-3 py-2 text-emerald-900 shadow-[0_20px_50px_-25px_rgba(0,0,0,.7)] backdrop-blur-xl sm:rounded-full sm:px-4">
           <div className="flex items-center justify-between gap-3">
             <Link href="/" className="flex min-w-0 items-center gap-2.5 pl-1">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-emerald-900/15 bg-emerald-900 font-serif text-lg text-cream">C</span>
-              <span className="leading-none">
-                <span className="block font-sans text-[13px] font-semibold uppercase tracking-[0.2em] text-emerald-900">Chheda</span>
-                <span className="block font-sans text-[8px] font-medium uppercase tracking-[0.35em] text-emerald-900/70">Jewellers · Gold rate</span>
-              </span>
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-emerald-900/15 bg-emerald-900 font-serif text-lg text-cream">₹</span>
+              <span className="font-sans text-[13px] font-semibold uppercase tracking-[0.2em] text-emerald-900">Gold rate</span>
             </Link>
             <nav className="hidden items-center gap-1 lg:flex">
               {nav.filter((n) => !n.admin || me?.role === 'admin').map((n) => {
@@ -66,8 +60,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </nav>
             <div className="flex shrink-0 items-center gap-2">
               {clock && <span className="hidden font-sans text-[10px] uppercase tracking-[0.14em] text-emerald-900/60 xl:inline">{clock} IST</span>}
-              {me && <span className="hidden rounded-full border border-emerald-900/15 px-2.5 py-1 font-sans text-[10px] uppercase tracking-[0.14em] text-emerald-900/80 md:inline">{me.name} · {me.role}</span>}
-              <button onClick={logout} className="rounded-full border border-copper/60 bg-copper/10 px-3.5 py-1.5 font-sans text-[10px] font-semibold uppercase tracking-[0.18em] text-copper-600 transition hover:bg-copper/25">Log out</button>
             </div>
           </div>
           <nav className="mt-2 flex items-center gap-1 overflow-x-auto pb-1 lg:hidden">

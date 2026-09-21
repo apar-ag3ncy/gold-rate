@@ -123,7 +123,7 @@ Vercel deploys the dashboard on every push to `main` (CI must be green first –
 
 ## 11. Manual smoke test after every deploy (5 minutes)
 1. `curl https://api.chhedajewellers.com/health` → `ok:true, db:up`; VPS `curl 127.0.0.1:4100/ready` → `ok:true`.
-2. Open `https://rate.chhedajewellers.com` → login page loads with the emerald theme; log in as admin.
+2. Open the dashboard address → the Rate page opens directly (no login screen; `AUTO_LOGIN_EMAIL` must be set in `.env`).
 3. Rate page shows today's status line and the IBJA card.
 4. Save tomorrow's rate → **Preview post** renders both images → Approve → (today only) **Send now** shows each channel as DRY RUN.
 5. Automation → **Test** on both connections → "Connected".

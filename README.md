@@ -1,4 +1,4 @@
-# Chheda Jewellers – Gold Rate Automation
+# Gold Rate Automation
 
 Admin enters the daily gold rate (or takes the IBJA benchmark) → approves → the system posts it automatically at the scheduled time
 (Instagram Feed/Story + WhatsApp opted-in customers).
@@ -25,7 +25,7 @@ Password rule: 10+ characters with upper-case, lower-case and a number (locally 
 ## Run (two terminals)
 ```bash
 npm run dev:api     # http://localhost:4000  (health: /health)
-npm run dev:web     # http://localhost:3000  → log in
+npm run dev:web     # http://localhost:3000  (no login screen – AUTO_LOGIN_EMAIL in .env)
 npm run dev:worker  # scheduler: sends the approved rate at the configured time (DRY_RUN logs only)
 ```
 

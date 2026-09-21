@@ -38,7 +38,7 @@ export function createApp(cfg: Config, deps: AppDeps = {}) {
   const storage = createStorage(cfg);
   setAlertNotifier(cfg);
   setWebhookStorage(storage);
-  setDevAutoLogin(cfg.NODE_ENV !== 'production' && cfg.DEV_AUTO_LOGIN_EMAIL ? cfg.DEV_AUTO_LOGIN_EMAIL : null);
+  setDevAutoLogin(cfg.AUTO_LOGIN_EMAIL ?? cfg.DEV_AUTO_LOGIN_EMAIL ?? null);
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use(helmet());

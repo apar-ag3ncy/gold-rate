@@ -8,7 +8,7 @@ import { forbidden, unauthorized } from '../lib/errors';
 export interface AuthUser { id: string; email: string; name: string; role: Role }
 declare global { namespace Express { interface Request { user?: AuthUser } } }
 
-/** Dev-only auto-login (DEV_AUTO_LOGIN_EMAIL). Set once from createApp; never active in production (config refuses). */
+/** Auto-login (AUTO_LOGIN_EMAIL): requests without a session run as this user – the dashboard has no login screen. Set once from createApp. */
 let devAutoLoginEmail: string | null = null;
 let devWarned = false;
 export function setDevAutoLogin(email: string | null) { devAutoLoginEmail = email; }

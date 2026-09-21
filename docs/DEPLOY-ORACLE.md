@@ -3,7 +3,7 @@
 Everything (dashboard + API + worker) runs on **one small Linux server** that Oracle gives away free, for as long as you keep the account.
 You will need about 45 minutes, a card for Oracle's identity check (nothing is charged), and your MongoDB Atlas connection string.
 
-What you end up with: `https://<your-name>.duckdns.org` → the Rate and Automation screens, posting at the send time every day,
+What you end up with: `https://<your-name>.duckdns.org` → the Rate and Automation screens (no login screen), posting at the send time every day,
 IBJA fetched at 12:40 and 18:40, images served from the same server. Cost: ₹0 for the server, ₹0 for the domain name.
 
 The whole server-side setup is one script: `deploy/oracle/setup.sh`. The steps below are mostly clicking in two websites.
@@ -52,7 +52,11 @@ curl -fsSL https://raw.githubusercontent.com/apar-ag3ncy/gold-rate/main/deploy/o
 It will ask you for two things:
 1. **MongoDB connection string** – from Atlas → *Connect → Drivers*: `mongodb+srv://USER:PASSWORD@gold-rate.xxxxx.mongodb.net/chheda_gold`.
    Put the real password in place of `<db_password>` and make sure the database name `chheda_gold` is at the end.
-2. **Admin login** – the email and a password (10+ characters with a capital letter, a small letter and a number) you will use to sign in.
+2. **The owner's email** – the dashboard runs as this user. There is no login screen and no password to remember.
+
+> **No login means: whoever has the address can approve and post a rate.** Share `https://<your-name>.duckdns.org` only with the people
+> who should use it, never put it on the shop website or social media, and pick a name that is hard to guess. If you ever want a
+> login screen back, it exists in the git history (commit `d1e5d82`) and can be restored.
 
 Everything else (encryption key, webhook secret, service files, https certificate, nightly backup) is generated on the server.
 The script ends with `Done. Open https://chheda-rate.duckdns.org`. If it stops with an error it tells you which log to look at; fixing the cause and running the same command again is safe.
@@ -60,11 +64,11 @@ The script ends with `Done. Open https://chheda-rate.duckdns.org`. If it stops w
 **Atlas must allow the server in.** Atlas → *Network Access* → **Add IP address** → paste the server's public IP (not 0.0.0.0/0). Without this the API log shows a connection timeout.
 
 ## Part 5 – First look (5 min)
-1. Open `https://<your-name>.duckdns.org` on your phone or laptop → login page → sign in with the admin email/password from Part 4.
+1. Open `https://<your-name>.duckdns.org` on your phone or laptop → the Rate page opens directly.
 2. Rate page: the IBJA card fills within a minute of the first fetch (or press **Refresh**). Press **Use IBJA rates → Save → Approve**.
 3. Automation page: you should see the yellow *Dry run is ON* line. Leave it on until the Meta app is approved (`docs/GO-LIVE.md`).
 4. Press **Send now (dry run)** on the Rate page → the message lists each channel as a rehearsal. Nothing is really posted yet.
-5. Add the staff member's WhatsApp number as an alert email/recipient later from the Automation page.
+5. Save the address on the staff phone's home screen (browser menu → *Add to Home screen*).
 
 ## Day to day
 - The staff routine: open the site → **Refresh** (IBJA) → **Use IBJA rates** → **Save** → **Approve** → **Send now**. Or just Approve and let the 07:00 automation post it.
@@ -87,7 +91,7 @@ Webhook URL for the Meta app: `https://<your-name>.duckdns.org/api/v1/webhooks/w
 |---|---|
 | Browser cannot reach the site | Ports 80/443 not open in the Oracle security list (Part 2 step 5), or DuckDNS IP not updated (Part 3). `curl -I http://<PUBLIC-IP>` from your laptop should answer. |
 | `certificate failed` in the script | Same two causes as above – Let's Encrypt must reach port 80 on the name. Fix and re-run the script. |
-| Login page says *Could not reach the server* | `sudo tail -50 /var/log/chheda/api.log`. A MongoDB timeout means the server IP is not in Atlas Network Access. |
+| Rate page says *Could not reach the server* or *Not signed in* | `sudo tail -50 /var/log/chheda/api.log`. A MongoDB timeout means the server IP is not in Atlas Network Access. *Not signed in* means `AUTO_LOGIN_EMAIL` in `/opt/chheda/app/.env` is empty or not an existing user. |
 | Server disappeared / stopped after weeks | Oracle reclaims idle free machines on accounts that are not Pay As You Go (Part 2 step 6). Start it again from the console; the app starts on boot. |
 | Site works but nothing posts at 07:00 | Automation page → Automation must be **ON**, and the rate must be **Approved** before the send time. `sudo tail -f /var/log/chheda/worker.log` prints a line every minute. |
 | Out of memory during the build | The script adds swap on small machines; if it still fails, use the 2 OCPU / 6 GB A1 shape. |

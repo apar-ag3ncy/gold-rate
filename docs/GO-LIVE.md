@@ -10,6 +10,7 @@
 - [ ] Admin alert email + WhatsApp number set; a test alert received (trigger: Send now while today's rate is a draft → "rate missing" alert)
 - [ ] Staff trained on `/staff`: app on Home Screen, notifications ON, Share → Mark posted walked through once
 - [ ] Sentry receiving events; uptime monitor on `/health`; backups cron ran once (`/var/log/chheda/backup.log`)
+- [ ] IBJA: for live pricing subscribe to the official IBJA Rates API (indiagoldratesapi.com) → `IBJA_SOURCE=api`, `IBJA_API_TOKEN` (UAT key needs `IBJA_API_BASE=https://uat.ibjarates.com`); keep **auto-approve OFF** during the trial – check the IBJA draft each evening and approve it
 - [ ] Production `.env` passes `node apps/api/scripts/check-env.mjs .env`; `DRY_RUN=true`
 
 ## Step 1 – Trial (1–2 weeks, DRY_RUN=true, automation ON)

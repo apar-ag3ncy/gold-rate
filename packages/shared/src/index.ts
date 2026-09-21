@@ -7,3 +7,4 @@ export * from './deliveries';
 export * from './scheduler';
 export * from './meta';
 export * from './rateForm';
+export * from './ibja';

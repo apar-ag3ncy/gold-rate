@@ -2,7 +2,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { addDays, buildCaption, DEFAULT_CAPTION_TEMPLATE, istDate, rateFormIsDirty, rateToForm, typedToNumber } from '@chheda/shared';
-import { api, ApiError, fmtDate, inr } from '@/lib/api';
+import { api, ApiError, fmtDate, fmtTime, inr } from '@/lib/api';
 import { Alert } from '@/components/Alert';
 import { CardSkeleton, ErrorState, LoadingGuard } from '@/components/ui';
 import Link from 'next/link';
@@ -14,6 +14,7 @@ type Extra = { label: string; value: string };
 type Form = { k24: string; k22: string; k18: string; extraPurities: Extra[]; overrideReason: string };
 type Preview = { feedUrl: string; storyUrl: string; caption: string; saved: boolean; warnings?: string[] };
 type TestResult = { delivery: Delivery; dryRun: boolean; rendered: { feedUrl: string; storyUrl: string; caption: string } };
+type IbjaLatest = { latest: { rateDate: string; session: 'AM' | 'PM'; perGram: { k24: string; k22: string; k18: string }; per10g: Record<string, string>; source: string; fetchedAt: string } | null; settings: { enabled: boolean; autoDraft: boolean; autoApprove: boolean; draftFor: string; preferSession: string }; source: string; lastFetch: { at: string; ok: boolean; error?: string; slot: string } | null };
 const empty: Form = { k24: '', k22: '', k18: '', extraPurities: [], overrideReason: '' };
 
 function Steps({ current }: { current: number }) {
@@ -54,9 +55,12 @@ function RateForm() {
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [testBusy, setTestBusy] = useState(false);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [ibja, setIbja] = useState<IbjaLatest | null>(null);
+  const [ibjaBusy, setIbjaBusy] = useState(false);
+  const loadIbja = useCallback(() => api<IbjaLatest>('/ibja/latest').then(setIbja).catch(() => {}), []);
   const [loadErr, setLoadErr] = useState('');
 
-  useEffect(() => { api<{ settings: { captionTemplate: string } }>('/settings').then((r) => setTemplate(r.settings.captionTemplate)).catch(() => {}); }, []);
+  useEffect(() => { api<{ settings: { captionTemplate: string } }>('/settings').then((r) => setTemplate(r.settings.captionTemplate)).catch(() => {}); loadIbja(); }, [loadIbja]);
 
   const load = useCallback(async (d: string) => {
     setMsg(null); setFieldErrors({}); setPreview(null); setTestResult(null); setLoadState('loading'); setLoadErr('');
@@ -137,6 +141,18 @@ function RateForm() {
     } finally { setPreviewBusy(false); }
   }
 
+  /** IBJA benchmark → form (exact per-gram digits). The admin still saves and approves. */
+  function useIbja() {
+    if (!ibja?.latest) return;
+    setForm({ ...form, k24: ibja.latest.perGram.k24, k22: ibja.latest.perGram.k22, k18: ibja.latest.perGram.k18 });
+    setMsg({ kind: 'success', title: `Filled from IBJA ${ibja.latest.session} rate of ${fmtDate(ibja.latest.rateDate)}. Check the values, then Save and Approve.` });
+  }
+  async function refreshIbja() {
+    setIbjaBusy(true); setMsg(null);
+    try { await api('/ibja/refresh', { method: 'POST' }); setMsg({ kind: 'success', title: 'IBJA rate refreshed.' }); }
+    catch (e) { setMsg({ kind: 'error', title: `IBJA fetch failed: ${(e as Error).message}` }); }
+    finally { await loadIbja(); setIbjaBusy(false); }
+  }
   async function copyCaption() {
     if (!preview) return;
     try { await navigator.clipboard.writeText(preview.caption); setCopied(true); setTimeout(() => setCopied(false), 2000); }
@@ -208,7 +224,7 @@ function RateForm() {
             </div>
             <div className="flex items-center gap-2 text-sm">
               <span className="font-serif text-base">{fmtDate(date)}</span>
-              <StatusBadge status={rate?.status ?? 'missing'} />
+              <StatusBadge status={rate?.status ?? 'missing'} />{rate?.source === 'ibja' && <span className="chip" title={`From IBJA ${(rate as any).ibja?.session} rate of ${(rate as any).ibja?.rateDate}`}>from IBJA</span>}
             </div>
           </div>
 
@@ -270,6 +286,22 @@ function RateForm() {
         </section>
 
         <aside className="space-y-4">
+          <section className="card">
+            <div className="mb-2 flex items-center justify-between gap-2"><h2 className="card-title">IBJA benchmark</h2>{ibja?.latest && <span className="chip">{ibja.latest.session} · {fmtDate(ibja.latest.rateDate)}</span>}</div>
+            {!ibja ? <p className="hint">Loading…</p> : !ibja.settings.enabled ? <p className="hint">IBJA reference is switched off in Settings.</p> : !ibja.latest ? (
+              <p className="hint">No IBJA rate fetched yet.{ibja.lastFetch && !ibja.lastFetch.ok && ` Last attempt failed: ${ibja.lastFetch.error}`}</p>
+            ) : (
+              <>
+                <dl className="grid grid-cols-3 gap-2 text-center">
+                  {([['24K', ibja.latest.perGram.k24, '999'], ['22K', ibja.latest.perGram.k22, '916'], ['18K', ibja.latest.perGram.k18, '750']] as const).map(([k, v, p]) => (
+                    <div key={k} className="rounded-xl border border-cream-200/15 bg-emerald-950/40 px-2 py-2"><dt className="text-[10px] uppercase tracking-wider text-copper">{k} · {p}</dt><dd className="kbd-money text-base font-bold">₹{v}</dd><dd className="hint">₹{ibja.latest?.per10g[p]} /10 g</dd></div>
+                  ))}
+                </dl>
+                <p className="hint mt-2">Per-gram = IBJA per-10 g ÷ 10, exact digits · {ibja.latest.source === 'api' ? 'official IBJA API' : 'ibjarates.com'} · fetched {fmtTime(ibja.latest.fetchedAt)}{rate?.source === 'ibja' && ' · this rate was drafted from IBJA'}</p>
+                {!readOnly && <div className="mt-3 flex flex-wrap gap-2"><button className="btn-primary btn-sm" onClick={useIbja}>Use IBJA rates</button><button className="btn-secondary btn-sm" onClick={refreshIbja} disabled={ibjaBusy}>{ibjaBusy ? 'Fetching…' : 'Refresh'}</button></div>}
+              </>
+            )}
+          </section>
           <section className="card">
             <h2 className="card-title mb-2">Caption preview</h2>
             <pre className="whitespace-pre-wrap rounded-xl surface p-3 font-sans text-sm leading-relaxed">{liveCaption ?? 'Enter 24K, 22K and 18K to see the caption.'}</pre>

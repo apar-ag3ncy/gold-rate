@@ -35,7 +35,7 @@ beforeEach(async () => {
   pushed = []; mails = []; deadEndpoints = new Set();
   await Promise.all([Rate.deleteMany({}), Delivery.deleteMany({}), Alert.deleteMany({}), SendDay.deleteMany({}), JobLock.deleteMany({}), PushSubscription.deleteMany({})]);
   const s = await getSettings();
-  s.set({ automationOn: true, sendTime: '07:00', cutoffTime: '11:00', manualReminderMinutes: 30, channels: { igFeed: true, igStory: true, waCustomers: true, staffShare: true, rateKeywordReply: true }, adminAlerts: { emails: ['owner@chheda.test'], whatsappNumbers: [], templateName: 'admin_alert', templateLanguage: 'en' } });
+  s.set({ automationOn: true, sendTime: '07:00', cutoffTime: '11:00', manualReminderMinutes: 30, ibja: { enabled: false }, channels: { igFeed: true, igStory: true, waCustomers: true, staffShare: true, rateKeywordReply: true }, adminAlerts: { emails: ['owner@chheda.test'], whatsappNumbers: [], templateName: 'admin_alert', templateLanguage: 'en' } });
   await s.save();
   const cfg = { ...testConfig, VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv' };
   deps = { cfg, storage: createStorage(cfg), sleep: async () => {} };

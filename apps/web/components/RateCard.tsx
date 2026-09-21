@@ -6,6 +6,7 @@ export type Rate = {
   extraPurities: { label: string; value: number }[];
   status: string; enteredBy?: string; approvedBy?: string; approvedAt?: string; updatedAt: string;
   validation: { warnings: string[] };
+  source?: 'admin' | 'ibja';
 };
 
 export function RateCard({ title, date, rate, action }: { title: string; date: string; rate: Rate | null; action?: React.ReactNode }) {

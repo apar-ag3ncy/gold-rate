@@ -23,6 +23,8 @@ const rateSchema = new Schema({
   overrideReason: String,
   validation: { errors: [String], warnings: [String] },
   revisions: { type: [revisionSchema], default: [] },
+  source: { type: String, enum: ['admin', 'ibja'], default: 'admin' },   // where the numbers came from (approval is still the gate)
+  ibja: { rateDate: String, session: String, fetchedAt: Date, source: String },
   creativeUrls: { feed: String, story: String },   // last rendered preview (never overwritten once sent)
   caption: String,
 }, { timestamps: true });

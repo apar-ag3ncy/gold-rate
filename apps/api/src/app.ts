@@ -23,6 +23,7 @@ import { subscribersRouter } from './routes/subscribers';
 import { webhooksRouter } from './routes/webhooks';
 import { staffRouter } from './routes/staff';
 import { usersRouter } from './routes/users';
+import { ibjaRouter } from './routes/ibja';
 import { setAlertNotifier } from './services/alerts';
 import { setWebhookStorage } from './services/webhooks';
 import { createStorage } from './services/storage';
@@ -30,7 +31,9 @@ import { createStorage } from './services/storage';
 export let sentryCapture: ((err: unknown, ctx?: Record<string, unknown>) => void) | null = null;
 export function setSentryCapture(fn: typeof sentryCapture) { sentryCapture = fn; }
 
-export function createApp(cfg: Config) {
+export interface AppDeps { /** test seam: every outbound HTTP call from routes goes through this */ fetchFn?: (url: string, init?: RequestInit) => Promise<Response> }
+
+export function createApp(cfg: Config, deps: AppDeps = {}) {
   const app = express();
   const storage = createStorage(cfg);
   setAlertNotifier(cfg);
@@ -79,6 +82,7 @@ export function createApp(cfg: Config) {
   api.use('/subscribers', subscribersRouter());
   api.use('/staff', staffRouter(cfg));
   api.use('/users', usersRouter());
+  api.use('/ibja', ibjaRouter(cfg, { fetchFn: deps.fetchFn }));
   api.use((_req, _res, next) => next(new HttpError(404, 'Route not found')));
   app.use('/api/v1', api);
 

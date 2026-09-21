@@ -17,6 +17,7 @@ import { AUTO_CHANNELS, MANUAL_CHANNELS, createPublishers, type AutoChannel, typ
 import { isRetryable, type FetchLike } from './meta/client';
 import { checkIntegrationsHealth } from './integrations';
 import { notifyStaffReady, remindPendingManual } from './staff';
+import { ibjaTick } from './ibja';
 import type { StorageAdapter } from './storage';
 
 export interface SchedulerDeps {
@@ -52,6 +53,8 @@ export async function tick(now: Date, deps: SchedulerDeps): Promise<TickResult> 
   if (isCutoffMinute(time, window)) out.closed = await closeDay(date, now, 'Cut-off time passed without an approved rate.');
   const r = await remindPendingManual(deps.cfg, now);
   if (r.reminded) (out as any).reminders = r.reminded;
+  const ib = await ibjaTick(deps.cfg, now, { fetchFn: deps.fetchFn }).catch((err) => { logger.error({ err }, 'ibja tick failed'); return null; });
+  if (ib) (out as any).ibja = ib;
   return out;
 }
 

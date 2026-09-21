@@ -80,6 +80,8 @@ META_APP_ID=… META_APP_SECRET=… META_WEBHOOK_VERIFY_TOKEN=<random string>
 VAPID_PUBLIC_KEY=… VAPID_PRIVATE_KEY=… VAPID_SUBJECT=mailto:owner@chhedajewellers.com
 SMTP_HOST=… SMTP_PORT=587 SMTP_SECURE=false SMTP_USER=… SMTP_PASS=… SMTP_FROM="Chheda Gold Rate <alerts@chhedajewellers.com>"
 SENTRY_DSN=https://…@….ingest.sentry.io/…
+IBJA_SOURCE=api            # website during the trial
+IBJA_API_TOKEN=…
 ```
 `.env` is `chmod 600`, owned by `chheda`, and never committed. Tokens for Instagram/WhatsApp are entered in the dashboard (encrypted at rest), not in `.env`.
 

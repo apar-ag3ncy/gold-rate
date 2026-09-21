@@ -11,3 +11,4 @@ export * from './Integration';
 export * from './Subscriber';
 export * from './WebhookEvent';
 export * from './PushSubscription';
+export * from './IbjaRate';

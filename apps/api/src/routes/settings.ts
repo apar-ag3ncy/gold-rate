@@ -18,6 +18,12 @@ const updateSchema = z.object({
   maxDailyChangePct: z.number().min(0.5).max(50).optional(),
   captionTemplate: captionTemplateSchema.optional(),
   manualReminderMinutes: z.number().int().min(5).max(240).optional(),
+  ibja: z.object({
+    enabled: z.boolean().optional(), autoDraft: z.boolean().optional(), autoApprove: z.boolean().optional(),
+    draftFor: z.enum(['today', 'tomorrow']).optional(), preferSession: z.enum(['AM', 'PM']).optional(),
+    fetchTimes: z.array(hhmm).min(1).max(6).optional(),
+    maxAgeDays: z.number().int().min(1).max(14).optional(),
+  }).strict().optional(),
   keywordReply: z.object({
     triggers: z.array(z.string().trim().min(2, 'Trigger words need at least 2 characters').max(40)).min(1, 'Keep at least one trigger word').max(30)
       .transform((arr) => Array.from(new Set(arr.map((t) => normaliseKeywordText(t)).filter(Boolean))))
@@ -50,6 +56,7 @@ const view = (s: any) => ({
   captionTemplate: s.captionTemplate ?? DEFAULT_CAPTION_TEMPLATE, defaultCaptionTemplate: DEFAULT_CAPTION_TEMPLATE,
   whatsapp: { templateName: s.whatsapp?.templateName, templateLanguage: s.whatsapp?.templateLanguage, includeExtrasParam: s.whatsapp?.includeExtrasParam },
   manualReminderMinutes: s.manualReminderMinutes ?? 30,
+  ibja: { enabled: s.ibja?.enabled ?? true, autoDraft: s.ibja?.autoDraft ?? false, autoApprove: s.ibja?.autoApprove ?? false, draftFor: s.ibja?.draftFor ?? 'tomorrow', preferSession: s.ibja?.preferSession ?? 'PM', fetchTimes: s.ibja?.fetchTimes?.length ? s.ibja.fetchTimes : ['12:40', '18:40'], maxAgeDays: s.ibja?.maxAgeDays ?? 4 },
   keywordReply: { triggers: s.keywordReply?.triggers?.length ? s.keywordReply.triggers : DEFAULT_KEYWORD_REPLY.triggers, maxPerSenderPerDay: s.keywordReply?.maxPerSenderPerDay ?? DEFAULT_KEYWORD_REPLY.maxPerSenderPerDay, notReadyMessage: s.keywordReply?.notReadyMessage ?? DEFAULT_KEYWORD_REPLY.notReadyMessage, defaults: DEFAULT_KEYWORD_REPLY },
   adminAlerts: { emails: s.adminAlerts?.emails ?? [], whatsappNumbers: (s.adminAlerts?.whatsappNumbers ?? []).map((n: any) => n.masked), templateName: s.adminAlerts?.templateName, templateLanguage: s.adminAlerts?.templateLanguage },
 });
@@ -62,11 +69,13 @@ export function settingsRouter() {
     const upd = parse(updateSchema, req.body);
     const s = await getSettings();
     const before = view(s);
-    const { channels, whatsapp, adminAlerts, keywordReply, ...rest } = upd;
+    const { channels, whatsapp, adminAlerts, keywordReply, ibja, ...rest } = upd;
     s.set(rest);
     if (channels) for (const [k, v] of Object.entries(channels)) s.set(`channels.${k}`, v);
     if (whatsapp) for (const [k, v] of Object.entries(whatsapp)) if (v !== undefined) s.set(`whatsapp.${k}`, v);
     if (keywordReply) for (const [k, v] of Object.entries(keywordReply)) if (v !== undefined) s.set(`keywordReply.${k}`, v);
+    if (ibja) for (const [k, v] of Object.entries(ibja)) if (v !== undefined) s.set(`ibja.${k}`, v);
+    if (s.ibja?.autoApprove && !s.ibja?.autoDraft) throw unprocessable('Auto-approve needs auto-draft to be on', { fields: { 'ibja.autoApprove': 'Turn on auto-draft first' } });
     if (adminAlerts) {
       const { whatsappNumbers, ...a } = adminAlerts;
       for (const [k, v] of Object.entries(a)) if (v !== undefined) s.set(`adminAlerts.${k}`, v);

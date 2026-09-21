@@ -15,6 +15,8 @@ export const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'chheda-medi
 export const TEST_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64');
 export const TEST_APP_SECRET = 'test-app-secret';
 export let testConfig: ReturnType<typeof loadConfig>;
+/** Outbound HTTP from routes in tests: set `testFetch.fn` per test; anything else fails loudly (no network in tests). */
+export const testFetch: { fn?: (url: string, init?: RequestInit) => Promise<Response> } = {};
 
 export async function startTestApp(extraEnv: Record<string, string> = {}) {
   let uri = process.env.TEST_MONGO_URI;
@@ -30,7 +32,7 @@ export async function startTestApp(extraEnv: Record<string, string> = {}) {
   process.env.ENCRYPTION_KEY ??= TEST_ENCRYPTION_KEY;
   const cfg = loadConfig({ NODE_ENV: 'test', MONGO_URI: uri, WEB_ORIGIN: 'http://localhost:3000', MEDIA_DIR: TEST_MEDIA_DIR, MEDIA_BASE_URL: 'http://localhost:4000', ENCRYPTION_KEY: TEST_ENCRYPTION_KEY, META_APP_SECRET: TEST_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN: 'verify-me', ...extraEnv } as any);
   testConfig = cfg;
-  return createApp(cfg);
+  return createApp(cfg, { fetchFn: (u, i) => { if (!testFetch.fn) throw new Error(`no network in tests (${u})`); return testFetch.fn(u, i); } });
 }
 
 export async function stopTestApp() {

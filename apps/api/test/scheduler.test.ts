@@ -31,9 +31,9 @@ let today: string;
 async function resetDay() {
   await Promise.all([Rate.deleteMany({}), Delivery.deleteMany({}), Alert.deleteMany({}), SendDay.deleteMany({}), JobLock.deleteMany({})]);
   pubs = { ig_feed: new FakePublisher('ig_feed'), ig_story: new FakePublisher('ig_story'), wa_customers: new FakePublisher('wa_customers') };
-  deps = { cfg: loadConfig({ NODE_ENV: 'test', MONGO_URI: 'x', MEDIA_DIR: TEST_MEDIA_DIR, MEDIA_BASE_URL: 'http://localhost:4000' } as any), storage: createStorage(loadConfig({ NODE_ENV: 'test', MONGO_URI: 'x', MEDIA_DIR: TEST_MEDIA_DIR, MEDIA_BASE_URL: 'http://localhost:4000' } as any)), publishers: pubs as unknown as PublisherMap, sleep: async () => {} };
+  deps = { cfg: loadConfig({ NODE_ENV: 'test', MONGO_URI: 'x', MEDIA_DIR: TEST_MEDIA_DIR, MEDIA_BASE_URL: 'http://localhost:4000' } as any), storage: createStorage(loadConfig({ NODE_ENV: 'test', MONGO_URI: 'x', MEDIA_DIR: TEST_MEDIA_DIR, MEDIA_BASE_URL: 'http://localhost:4000' } as any)), publishers: pubs as unknown as PublisherMap, sleep: async () => {}, fetchFn: async (u: string) => { throw new Error(`no network in tests (${u})`); } };
   const s = await getSettings();
-  s.set({ automationOn: true, sendTime: '07:00', cutoffTime: '11:00', channels: { igFeed: true, igStory: true, waCustomers: true, staffShare: true, rateKeywordReply: true } });
+  s.set({ automationOn: true, sendTime: '07:00', cutoffTime: '11:00', channels: { igFeed: true, igStory: true, waCustomers: true, staffShare: true, rateKeywordReply: true }, ibja: { enabled: false } });
   await s.save();
 }
 const approvedToday = (date = today) => Rate.create({ date, ...good, status: 'approved', enteredBy: 'a', approvedBy: 'a', approvedAt: new Date() });

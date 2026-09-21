@@ -1,7 +1,7 @@
 # Specification – Chheda Gold Rate Automation
 
 ## 1. Goal
-ADMIN ENTERS RATE → SAVE & APPROVE → SCHEDULER (default 07:00 IST) → AUTO-POST → INSTAGRAM + WHATSAPP → LOGS.
+ADMIN ENTERS RATE (or accepts the IBJA benchmark draft) → SAVE & APPROVE → SCHEDULER (default 07:00 IST) → AUTO-POST → INSTAGRAM + WHATSAPP → LOGS.
 
 ## 2. Destinations (verified against Meta docs, Sept 2026 – re-check before launch)
 | Destination | Mode | Mechanism |
@@ -59,7 +59,9 @@ ADMIN ENTERS RATE → SAVE & APPROVE → SCHEDULER (default 07:00 IST) → AUTO-
 - **deliveries**: rateId, date, channel, trigger(cron|send_now|test|keyword), idempotencyKey (unique, sparse), status,
   externalId, error, attempts, postedBy (manual), timestamps
 - **wa_subscribers**: phone (encrypted + hashed for lookup), optInAt, optInSource, optOutAt, status, lastDeliveryStatus
-- **settings** (singleton): automationOn, sendTime, cutoffTime, timezone, channels{}, captionTemplate, maxDailyChangePct, priceRange{min,max}
+- **settings** (singleton): automationOn, sendTime, cutoffTime, timezone, channels{}, captionTemplate, maxDailyChangePct, priceRange{min,max}, ibja{enabled, autoDraft, autoApprove, draftFor, preferSession, fetchTimes}
+- **ibja_rates**: rateDate + session (AM|PM, unique), per10g{999,995,916,750,585,silver999,platinum999} (exact digits), perGram{k24,k22,k18} (÷10 exact), source(api|website), fetchedAt · **ibja_fetches**: attempt log (90-day TTL)
+- **rates** additionally carry `source` (admin|ibja) and `ibja{rateDate, session, fetchedAt, source}` when drafted from the benchmark
 - **integrations**: channel, encryptedToken, accountId/phoneNumberId, expiresAt, lastHealthCheck, status
 - **users**: email, passwordHash, role, mfaSecret?, lastLoginAt, disabled
 - **alerts**: type(rate_missing|send_failed|token_expiring|manual_pending), message, severity, status, ackBy
@@ -75,6 +77,7 @@ deliveries: GET /deliveries?date, GET /deliveries/keyword (RATE auto-reply log),
 settings: GET/PUT /settings (incl. keywordReply{triggers,maxPerSenderPerDay,notReadyMessage})
 integrations: GET /integrations, POST /integrations/:channel/test
 alerts: GET /alerts, POST /alerts/:id/ack
+ibja: GET /ibja/latest, GET /ibja/history, POST /ibja/refresh (admin, ≤6/h), POST /ibja/draft (admin)
 subscribers: GET /subscribers, POST /subscribers/import
 webhooks: GET/POST /webhooks/whatsapp, GET/POST /webhooks/instagram (verify X-Hub-Signature-256)
 
@@ -82,6 +85,11 @@ webhooks: GET/POST /webhooks/whatsapp, GET/POST /webhooks/instagram (verify X-Hu
 argon2, httpOnly+Secure+SameSite cookies, CSRF protection, Helmet, CORS allowlist, rate-limit login,
 role checks on every route, AES-256-GCM for tokens/phones (key from env/secret manager), audit every write,
 no secrets in logs, webhook signature verification, input validation with Zod on every endpoint.
+
+## 10a. IBJA benchmark (optional source for the daily rate)
+- Source A (go-live): official **IBJA Rates API** – subscription via indiagoldratesapi.com (email nagaraj.iyer@ibja.in); `IBJA_SOURCE=api`, `IBJA_API_TOKEN`; 40 hits/day, rates refreshed ~12:10 (AM) and ~18:10 (PM).
+- Source B (trial/fallback): the public ibjarates.com page (server-rendered table `lblGold999_AM/PM`…); IBJA advises commercial pricing use to go through the API.
+- Worker fetches at `settings.ibja.fetchTimes` (default 12:40, 18:40 IST, with catch-up), stores every AM/PM snapshot, optionally drafts `draftFor` (default tomorrow) from `preferSession` (default PM). Drafts never overwrite a rate a person entered/approved; validation (range, ordering, % change) still applies; failures raise `ibja_fetch_failed`, drafts raise `ibja_draft_ready`.
 
 ## 10. Meta setup checklist (owner: Chheda)
 - Meta Business verification; developer app; App Review for Instagram publishing + messaging permissions

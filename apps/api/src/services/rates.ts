@@ -13,6 +13,8 @@ export function toDTO(r: any) {
     overrideReason: r.overrideReason || undefined,
     validation: { errors: r.validation?.errors ?? [], warnings: r.validation?.warnings ?? [] },
     revisions: r.revisions ?? [],
+    source: r.source ?? 'admin',
+    ibja: r.ibja?.rateDate ? { rateDate: r.ibja.rateDate, session: r.ibja.session, fetchedAt: r.ibja.fetchedAt, source: r.ibja.source } : undefined,
     creativeUrls: r.creativeUrls?.feed ? { feed: r.creativeUrls.feed, story: r.creativeUrls.story } : undefined,
     caption: r.caption || undefined,
     createdAt: r.createdAt, updatedAt: r.updatedAt,
@@ -34,7 +36,7 @@ export async function checkRate(date: string, input: RateInput, now = new Date()
 }
 
 /** Create or update the draft for a date. Stores values exactly as entered. */
-export async function saveRate(date: string, input: RateInput, by: string, now = new Date()) {
+export async function saveRate(date: string, input: RateInput, by: string, now = new Date(), meta: { source?: 'admin' | 'ibja'; ibja?: { rateDate: string; session: string; fetchedAt: Date; source: string } } = {}) {
   const existing = await Rate.findOne({ date });
   if (existing?.status === 'sent') throw conflict('This rate has already been sent and is locked.');
   const result = await checkRate(date, input, now);
@@ -44,7 +46,7 @@ export async function saveRate(date: string, input: RateInput, by: string, now =
   const before = snapshot(existing);
   const action = !existing ? 'create' : existing.status === 'approved' ? 'update_unapproved' : 'update';
   const rate = existing ?? new Rate({ date });
-  rate.set({ ...values, status: 'draft', enteredBy: by, approvedBy: undefined, approvedAt: undefined, validation: { errors: [], warnings: result.warnings } });
+  rate.set({ ...values, status: 'draft', enteredBy: by, approvedBy: undefined, approvedAt: undefined, validation: { errors: [], warnings: result.warnings }, source: meta.source ?? 'admin', ibja: meta.source === 'ibja' ? meta.ibja : undefined });
   rate.revisions.push({ at: now, by, action, from: before, to: { ...values, status: 'draft' } });
   await rate.save();
   return { rate, before, warnings: result.warnings };

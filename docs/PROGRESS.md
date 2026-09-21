@@ -295,6 +295,20 @@ updates, rollback, monitoring and the manual smoke test.
 Small fixes: distinct placeholders for 22K/18K; the live caption formats the number the API stores (same as image + caption);
 duplicate `auth/me`, `alerts/count` and `deliveries/log` calls removed (shared session context in the shell + in-flight GET coalescing in `lib/api.ts`).
 
+## IBJA benchmark feed (21 Sep 2026)
+Client wants the daily 24K/22K/18K to come from IBJA. Built as a **feed into the existing flow**, not a bypass of it:
+- `packages/shared/src/ibja.ts`: purity map (999/916/750 → 24K/22K/18K), `per10gToPerGram` = exact decimal shift (153056 → 15305.6, no float, no rounding), date/session helpers.
+- `apps/api/src/services/ibja/`: `parse.ts` (ibjarates.com homepage → today AM/PM + history + IBJA's own per-gram cards; throws on layout change),
+  `sources.ts` (`IbjaApiSource` = official API `GET /API/GoldRates/?ACCESS_TOKEN&START_DATE&END_DATE`, rows grouped by date+session, error/hit-limit mapping;
+  `IbjaWebsiteSource` = page parser), `index.ts` (`fetchAndStoreIbja` upserts `ibja_rates` and logs `ibja_fetches`; `autoDraftFromIbja`
+  drafts `draftFor` from `preferSession`, never overwrites admin rates, re-drafts only when a newer snapshot arrives, optional `autoApprove`
+  as `system:ibja`; `ibjaTick` runs inside the scheduler tick at the configured minutes with one catch-up per missed slot).
+- API `/ibja/latest|history|refresh|draft`; settings `ibja{…}` (auto-approve requires auto-draft); rates carry `source` + `ibja{}`.
+- Dashboard: IBJA panel on Enter Rate (per-gram + per-10 g, **Use IBJA rates**, Refresh, "from IBJA" chip), IBJA section in Settings, benchmark card on the home page.
+- Env: `IBJA_SOURCE` (website default for the trial; api for go-live), `IBJA_API_TOKEN`, `IBJA_API_BASE`, `IBJA_WEBSITE_URL`.
+- Tests: `packages/shared/test/ibja.test.ts` (conversion), `apps/api/test/ibja.test.ts` (fixture parser, both sources incl. API errors, upsert idempotency, failure alert, every draft rule, scheduler slots + catch-up, routes/roles, settings validation).
+- CLAUDE.md rule 1 amended accordingly; manual entry is unchanged and always available.
+
 ## How to run / test
 ```bash
 npm install

@@ -1,5 +1,5 @@
 import { Schema, model } from 'mongoose';
-import { DEFAULT_CAPTION_TEMPLATE, DEFAULT_KEYWORD_REPLY, DEFAULT_MANUAL_REMINDER_MIN, DEFAULT_WHATSAPP_TEMPLATE } from '@chheda/shared';
+import { DEFAULT_CAPTION_TEMPLATE, DEFAULT_IBJA_SETTINGS, DEFAULT_KEYWORD_REPLY, DEFAULT_MANUAL_REMINDER_MIN, DEFAULT_WHATSAPP_TEMPLATE } from '@chheda/shared';
 
 const settingsSchema = new Schema({
   _id: { type: String, default: 'main' },
@@ -12,6 +12,15 @@ const settingsSchema = new Schema({
   maxDailyChangePct: { type: Number, default: 5 },
   captionTemplate: { type: String, default: DEFAULT_CAPTION_TEMPLATE },
   manualReminderMinutes: { type: Number, default: DEFAULT_MANUAL_REMINDER_MIN },
+  ibja: {
+    enabled: { type: Boolean, default: DEFAULT_IBJA_SETTINGS.enabled },
+    autoDraft: { type: Boolean, default: DEFAULT_IBJA_SETTINGS.autoDraft },
+    autoApprove: { type: Boolean, default: DEFAULT_IBJA_SETTINGS.autoApprove },
+    draftFor: { type: String, enum: ['today', 'tomorrow'], default: DEFAULT_IBJA_SETTINGS.draftFor },
+    preferSession: { type: String, enum: ['AM', 'PM'], default: DEFAULT_IBJA_SETTINGS.preferSession },
+    fetchTimes: { type: [String], default: () => [...DEFAULT_IBJA_SETTINGS.fetchTimes] },
+    maxAgeDays: { type: Number, default: DEFAULT_IBJA_SETTINGS.maxAgeDays },
+  },
   keywordReply: {
     triggers: { type: [String], default: () => [...DEFAULT_KEYWORD_REPLY.triggers] },
     maxPerSenderPerDay: { type: Number, default: DEFAULT_KEYWORD_REPLY.maxPerSenderPerDay },

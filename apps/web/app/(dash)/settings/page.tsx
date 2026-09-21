@@ -13,6 +13,7 @@ type Settings = {
   captionTemplate: string; defaultCaptionTemplate: string;
   whatsapp: { templateName: string; templateLanguage: string; includeExtrasParam: boolean };
   manualReminderMinutes: number;
+  ibja: { enabled: boolean; autoDraft: boolean; autoApprove: boolean; draftFor: 'today' | 'tomorrow'; preferSession: 'AM' | 'PM'; fetchTimes: string[]; maxAgeDays: number };
   keywordReply: { triggers: string[]; maxPerSenderPerDay: number; notReadyMessage: string; defaults: { triggers: string[]; maxPerSenderPerDay: number; notReadyMessage: string } };
   adminAlerts: { emails: string[]; whatsappNumbers: string[]; templateName?: string; templateLanguage?: string };
 };
@@ -70,8 +71,8 @@ export default function SettingsPage() {
   async function save() {
     setBusy(true); setMsg(null);
     try {
-      const { automationOn, sendTime, cutoffTime, priceMin, priceMax, maxDailyChangePct, channels, captionTemplate, whatsapp, manualReminderMinutes, adminAlerts, keywordReply } = s!;
-      const r = await api<{ settings: Settings }>('/settings', { method: 'PUT', body: { automationOn, sendTime, cutoffTime, priceMin, priceMax, maxDailyChangePct, channels, captionTemplate, whatsapp, manualReminderMinutes, adminAlerts: { ...adminAlerts, emails: adminAlerts.emails.filter(Boolean), whatsappNumbers: adminAlerts.whatsappNumbers.filter(Boolean) }, keywordReply: { triggers: keywordReply.triggers.filter(Boolean), maxPerSenderPerDay: keywordReply.maxPerSenderPerDay, notReadyMessage: keywordReply.notReadyMessage } } });
+      const { automationOn, sendTime, cutoffTime, priceMin, priceMax, maxDailyChangePct, channels, captionTemplate, whatsapp, manualReminderMinutes, adminAlerts, keywordReply, ibja } = s!;
+      const r = await api<{ settings: Settings }>('/settings', { method: 'PUT', body: { automationOn, sendTime, cutoffTime, priceMin, priceMax, maxDailyChangePct, channels, captionTemplate, whatsapp, manualReminderMinutes, adminAlerts: { ...adminAlerts, emails: adminAlerts.emails.filter(Boolean), whatsappNumbers: adminAlerts.whatsappNumbers.filter(Boolean) }, keywordReply: { triggers: keywordReply.triggers.filter(Boolean), maxPerSenderPerDay: keywordReply.maxPerSenderPerDay, notReadyMessage: keywordReply.notReadyMessage }, ibja: { ...ibja, fetchTimes: ibja.fetchTimes.filter(Boolean) } } });
       setS(r.settings); setMsg({ kind: 'success', title: 'Settings saved.' });
     } catch (e) {
       const d = (e as ApiError).details?.fields;
@@ -148,6 +149,19 @@ export default function SettingsPage() {
           <label className="flex items-center gap-3 self-end pb-2 text-sm"><input type="checkbox" className="h-4 w-4 accent-copper" checked={s.whatsapp.includeExtrasParam} onChange={(e) => setS({ ...s, whatsapp: { ...s.whatsapp, includeExtrasParam: e.target.checked } })} />Template has a 5th parameter for other purities</label>
         </div>
         <p className="hint">Create and get the template approved in WhatsApp Manager first; the name and parameter count must match exactly. Tokens and ids live on the Connections page.</p>
+      </Section>
+
+      <Section title="IBJA benchmark rate" sub="Daily gold benchmark from IBJA (999 → 24K, 916 → 22K, 750 → 18K, per-10 g ÷ 10 exactly). It can pre-fill or draft the rate; approval still decides what is sent."
+        right={<div className="flex items-center gap-2 text-sm font-semibold"><span className={s.ibja.enabled ? 'text-emerald-300' : 'text-sand'}>{s.ibja.enabled ? 'ON' : 'OFF'}</span><Toggle label="IBJA reference" on={s.ibja.enabled} onChange={() => setS({ ...s, ibja: { ...s.ibja, enabled: !s.ibja.enabled } })} /></div>}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-1 h-4 w-4 accent-copper" checked={s.ibja.autoDraft} onChange={(e) => setS({ ...s, ibja: { ...s.ibja, autoDraft: e.target.checked, autoApprove: e.target.checked ? s.ibja.autoApprove : false } })} /><span><b>Auto-draft</b> after each fetch<span className="block text-xs text-cream-200/70">Creates or refreshes the draft for {s.ibja.draftFor} from the IBJA rate. Never touches a rate a person entered.</span></span></label>
+          <label className={`flex items-start gap-3 text-sm ${s.ibja.autoDraft ? '' : 'opacity-50'}`}><input type="checkbox" className="mt-1 h-4 w-4 accent-copper" disabled={!s.ibja.autoDraft} checked={s.ibja.autoApprove} onChange={(e) => setS({ ...s, ibja: { ...s.ibja, autoApprove: e.target.checked } })} /><span><b className="text-amber-200">Auto-approve</b> the IBJA draft<span className="block text-xs text-amber-100/80">Fully hands-off: the benchmark rate is sent at the send time without anyone checking it. Keep OFF during the trial.</span></span></label>
+          <div><label className="label" htmlFor="ibja-for">Draft for</label><select id="ibja-for" className="input" value={s.ibja.draftFor} onChange={(e) => setS({ ...s, ibja: { ...s.ibja, draftFor: e.target.value as any } })}><option value="tomorrow">Tomorrow (evening PM rate → next morning&apos;s post)</option><option value="today">Today</option></select></div>
+          <div><label className="label" htmlFor="ibja-sess">Prefer session</label><select id="ibja-sess" className="input" value={s.ibja.preferSession} onChange={(e) => setS({ ...s, ibja: { ...s.ibja, preferSession: e.target.value as any } })}><option value="PM">PM (closing, ~18:10 IST)</option><option value="AM">AM (opening, ~12:10 IST)</option></select></div>
+          <div><label className="label" htmlFor="ibja-age">Ignore snapshots older than (days)</label><input id="ibja-age" type="number" min={1} max={14} className="input kbd-money" value={s.ibja.maxAgeDays} onChange={(e) => setS({ ...s, ibja: { ...s.ibja, maxAgeDays: Number(e.target.value) } })} /><p className="hint">Covers weekends and holidays; an older benchmark is never drafted.</p></div>
+          <div><label className="label" htmlFor="ibja-times">Fetch times (IST, comma-separated, after IBJA publishes at ~12:10 and ~18:10)</label><input id="ibja-times" className="input font-mono" value={s.ibja.fetchTimes.join(', ')} onChange={(e) => setS({ ...s, ibja: { ...s.ibja, fetchTimes: e.target.value.split(',').map((x) => x.trim()) } })} placeholder="12:40, 18:40" /></div>
+        </div>
+        <p className="hint">Source: set with IBJA_SOURCE in .env – the public ibjarates.com page for the trial, the official IBJA API (subscription) for live pricing.</p>
       </Section>
 
       <Section title='"RATE" keyword auto-reply' sub="Customers who message a trigger word on WhatsApp or Instagram get today's approved rate back automatically."

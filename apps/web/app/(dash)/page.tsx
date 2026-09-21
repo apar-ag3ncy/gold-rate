@@ -16,7 +16,8 @@ type DayStatus = { status: string; reason?: string; attempts: number; lastCheckA
 type Integration = { channel: 'instagram' | 'whatsapp'; status: string; displayName?: string; expiresAt?: string; lastError?: string };
 type WaCounts = { recipients: number; sent: number; failed: number; queued: number; delivered: number; read: number };
 type Plan = { date: string; dryRun: boolean; canSend: boolean; reason?: string; subscribers: number; rate: { k24: number; k22: number; k18: number; extraPurities: { label: string; value: number }[] } | null; channels: { channel: string; enabled: boolean; alreadySent: boolean; recipients?: number; manual?: boolean }[] };
-type Data = { s: Summary; cfg: Settings; deliveries: Delivery[]; day: DayStatus; wa: WaCounts; integrations: Integration[]; dryRun: boolean; subscribers: number | null };
+type IbjaLatest = { latest: { rateDate: string; session: string; perGram: { k24: string; k22: string; k18: string }; fetchedAt: string } | null; settings: { enabled: boolean; autoDraft: boolean; autoApprove: boolean }; lastFetch: { ok: boolean; error?: string; at: string } | null };
+type Data = { s: Summary; cfg: Settings; deliveries: Delivery[]; day: DayStatus; wa: WaCounts; integrations: Integration[]; dryRun: boolean; subscribers: number | null; ibja: IbjaLatest | null };
 
 const dayLabel: Record<string, { text: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' }> = {
   sent: { text: 'Sent', tone: 'ok' }, partial: { text: 'Partly sent', tone: 'bad' }, rate_missing: { text: 'Rate missing', tone: 'bad' }, skipped: { text: 'Skipped', tone: 'bad' }, pending: { text: 'Waiting for send time', tone: 'neutral' },
@@ -52,8 +53,9 @@ export default function Dashboard() {
         api<Summary>('/rates/summary'), api<{ settings: Settings }>('/settings'), api<{ items: Delivery[]; day: DayStatus; whatsapp: WaCounts }>('/deliveries'),
         api<{ items: Integration[]; dryRun: boolean }>('/integrations'),
       ]);
+      const ibja = await api<IbjaLatest>('/ibja/latest').catch(() => null);
       const subs = role === 'viewer' ? null : await api<{ counts: { active: number } }>('/subscribers?limit=1').then((r) => r.counts.active).catch(() => null);
-      setD({ s, cfg: cfg.settings, deliveries: del.items, day: del.day, wa: del.whatsapp, integrations: integ.items, dryRun: integ.dryRun, subscribers: subs });
+      setD({ s, cfg: cfg.settings, deliveries: del.items, day: del.day, wa: del.whatsapp, integrations: integ.items, dryRun: integ.dryRun, subscribers: subs, ibja });
       session.refreshAlerts();
       setErr(''); setRefreshedAt(new Date());
     } catch (e) { setErr((e as Error).message); }
@@ -205,6 +207,15 @@ export default function Dashboard() {
           )}
         </section>
       </div>
+
+      {d.ibja?.settings.enabled && (
+        <section className="card">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div><h2 className="card-title">IBJA benchmark</h2><p className="hint">{d.ibja.latest ? `${d.ibja.latest.session} rate of ${fmtDate(d.ibja.latest.rateDate)} · fetched ${fmtTime(d.ibja.latest.fetchedAt)}` : 'not fetched yet'}{d.ibja.lastFetch && !d.ibja.lastFetch.ok && <span className="text-red-200"> · last fetch failed: {d.ibja.lastFetch.error}</span>} · auto-draft {d.ibja.settings.autoDraft ? 'ON' : 'OFF'}{d.ibja.settings.autoApprove && ' · auto-approve ON'}</p></div>
+            {d.ibja.latest && <dl className="flex gap-2 text-center">{([['24K', d.ibja.latest.perGram.k24], ['22K', d.ibja.latest.perGram.k22], ['18K', d.ibja.latest.perGram.k18]] as const).map(([k, v]) => <div key={k} className="rounded-xl border border-cream-200/15 bg-emerald-950/40 px-3 py-1.5"><dt className="text-[10px] uppercase tracking-wider text-copper">{k}</dt><dd className="kbd-money font-bold">₹{v}/g</dd></div>)}</dl>}
+          </div>
+        </section>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <RateCard title="Today's rate" date={s.today} rate={s.todayRate} action={s.todayRate?.status !== 'sent' && <Link className="btn-secondary btn-sm" href={`/rates?date=${s.today}`}>{s.todayRate ? 'Edit / approve' : "Enter today's rate"}</Link>} />

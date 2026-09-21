@@ -53,6 +53,12 @@ const schema = z.object({
   SENTRY_DSN: z.string().optional(),
   APP_VERSION: z.string().optional(),        // release tag (git sha) – set by the deploy script / CI
   WORKER_PORT: z.coerce.number().int().default(4100),
+  // ---- IBJA benchmark rates ----
+  /** api = official IBJA Rates API (subscription, indiagoldratesapi.com) · website = parse ibjarates.com (trial / fallback only) */
+  IBJA_SOURCE: z.enum(['api', 'website']).default('website'),
+  IBJA_API_TOKEN: z.string().optional(),
+  IBJA_API_BASE: z.string().default('https://ibjarates.com'),      // https://uat.ibjarates.com for the UAT key
+  IBJA_WEBSITE_URL: z.string().default('https://ibjarates.com/'),
   /** DEV ONLY: every request without a session runs as this user (no login screen). Refused in production. */
   DEV_AUTO_LOGIN_EMAIL: z.string().email().optional(),
 });
@@ -80,6 +86,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (!cfg.VAPID_PUBLIC_KEY) console.warn('WARN: VAPID keys not set – staff push notifications are disabled');
     if (!cfg.SMTP_HOST) console.warn('WARN: SMTP_HOST not set – admin alert emails are disabled');
   }
+  if (cfg.IBJA_SOURCE === 'api' && !cfg.IBJA_API_TOKEN) problems.push('IBJA_SOURCE=api needs IBJA_API_TOKEN');
+  if (cfg.NODE_ENV === 'production' && cfg.IBJA_SOURCE === 'website') console.warn('WARN: IBJA_SOURCE=website – IBJA asks commercial users to subscribe to the official API (indiagoldratesapi.com)');
   if (cfg.STORAGE_DRIVER === 'cloudinary' && (!cfg.CLOUDINARY_CLOUD_NAME || !cfg.CLOUDINARY_API_KEY || !cfg.CLOUDINARY_API_SECRET)) problems.push('STORAGE_DRIVER=cloudinary needs CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET');
   if (cfg.ENCRYPTION_KEY && Buffer.from(cfg.ENCRYPTION_KEY, 'base64').length !== 32) problems.push('ENCRYPTION_KEY must be 32 bytes, base64 (openssl rand -base64 32)');
   if (problems.length) throw new Error(`Invalid environment configuration:\n- ${problems.join('\n- ')}`);

@@ -307,6 +307,12 @@ Client wants the daily 24K/22K/18K to come from IBJA. Built as a **feed into the
 - Dashboard: IBJA panel on Enter Rate (per-gram + per-10 g, **Use IBJA rates**, Refresh, "from IBJA" chip), IBJA section in Settings, benchmark card on the home page.
 - Env: `IBJA_SOURCE` (website default for the trial; api for go-live), `IBJA_API_TOKEN`, `IBJA_API_BASE`, `IBJA_WEBSITE_URL`.
 - Tests: `packages/shared/test/ibja.test.ts` (conversion), `apps/api/test/ibja.test.ts` (fixture parser, both sources incl. API errors, upsert idempotency, failure alert, every draft rule, scheduler slots + catch-up, routes/roles, settings validation).
+- Hardening from the adversarial review (all with tests): no override reason on IBJA drafts (the ±% daily-change guard can block them);
+  Zod-parsed numbers before the ordering rule; cancelled drafts stay cancelled (only the explicit "draft now" revives them); a date with any
+  delivery is never re-drafted; staleness bound `maxAgeDays` (default 4); zero/blank cells are never rates; future-dated upstream rows dropped;
+  15 s HTTP timeouts + body cap; API token scrubbed from every error/alert/row; bounded retries (10 min, ×3) for transient failures, one
+  cross-midnight catch-up, official-API quota reserve for scheduled slots; tolerant page regexes; `/ibja/draft` throttled; test seam so no
+  test ever reaches the network (`testFetch` in `test/setup.ts`).
 - CLAUDE.md rule 1 amended accordingly; manual entry is unchanged and always available.
 
 ## How to run / test

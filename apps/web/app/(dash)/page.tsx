@@ -37,13 +37,14 @@ function RateScreen() {
   const [day, setDay] = useState<Day>(null);
   const [ibja, setIbja] = useState<Ibja | null>(null);
   const [ibjaBusy, setIbjaBusy] = useState(false);
+  const [ibjaErr, setIbjaErr] = useState('');
   const [preview, setPreview] = useState<Preview | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [sending, setSending] = useState(false);
   const { me } = useSession();
 
-  const loadIbja = useCallback(() => api<Ibja>('/ibja/latest').then(setIbja).catch(() => {}), []);
+  const loadIbja = useCallback(() => api<Ibja>('/ibja/latest').then((r) => { setIbja(r); setIbjaErr(''); }).catch((e) => setIbjaErr((e as Error).message || 'Could not load')), []);
   const loadStatus = useCallback(() => Promise.all([api<Summary>('/rates/summary'), api<{ settings: Cfg & { captionTemplate: string } }>('/settings'), api<{ day: Day }>('/deliveries')])
     .then(([s, c, d]) => { setSummary(s); setCfg(c.settings); setTemplate(c.settings.captionTemplate); setDay(d.day); }).catch(() => {}), []);
   const load = useCallback(async (d: string) => {
@@ -199,7 +200,7 @@ function RateScreen() {
         <aside className="space-y-4">
           <section className="card">
             <div className="mb-2 flex items-center justify-between gap-2"><h2 className="card-title">IBJA rate</h2>{ibja?.latest && <span className="chip">{ibja.latest.session} · {fmtDate(ibja.latest.rateDate)}</span>}</div>
-            {!ibja ? <CardSkeleton lines={3} /> : !ibja.settings.enabled ? <p className="hint">IBJA is switched off in Automation.</p> : !ibja.latest ? <p className="hint">No IBJA rate fetched yet.{ibja.lastFetch && !ibja.lastFetch.ok && ` Last attempt failed: ${ibja.lastFetch.error}`}</p> : (
+            {!ibja && ibjaErr ? <ErrorState message={`Could not load IBJA rates: ${ibjaErr}`} retry={loadIbja} /> : !ibja ? <CardSkeleton lines={3} /> : !ibja.settings.enabled ? <p className="hint">IBJA is switched off in Automation.</p> : !ibja.latest ? <p className="hint">No IBJA rate fetched yet.{ibja.lastFetch && !ibja.lastFetch.ok && ` Last attempt failed: ${ibja.lastFetch.error}`}</p> : (
               <>
                 <dl className="space-y-1.5">
                   {([['24K', ibja.latest.perGram.k24, '999'], ['22K', ibja.latest.perGram.k22, '916'], ['18K', ibja.latest.perGram.k18, '750']] as const).map(([k, v, p]) => (

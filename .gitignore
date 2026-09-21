@@ -11,3 +11,4 @@ uploads
 .next-build
 *.tsbuildinfo
 Screenshot*.png
+.claude/

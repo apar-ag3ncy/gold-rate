@@ -12,3 +12,4 @@ uploads
 *.tsbuildinfo
 Screenshot*.png
 .claude/
+apps/web/next-env.d.ts

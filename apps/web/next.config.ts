@@ -9,6 +9,8 @@ const config: NextConfig = {
   // `NEXT_DIST_DIR=.next-build npm run build:web` keeps a production build from clobbering a running `next dev`
   distDir: process.env.NEXT_DIST_DIR || '.next',
   poweredByHeader: false,
+  // Next 16 "next dev" otherwise writes AGENTS.md + CLAUDE.md into apps/web on every start; project instructions live in the root CLAUDE.md.
+  agentRules: false,
   // Browser talks to the same origin; Next proxies to the Express API (keeps cookies first-party).
   async rewrites() {
     return [{ source: '/api/v1/:path*', destination: `${api}/api/v1/:path*` }];

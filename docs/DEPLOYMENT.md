@@ -86,6 +86,7 @@ IBJA_API_TOKEN=…
 `.env` is `chmod 600`, owned by `chheda`, and never committed. Tokens for Instagram/WhatsApp are entered in the dashboard (encrypted at rest), not in `.env`.
 
 ## 6. Vercel (dashboard)
+The dashboard runs **Next.js 16** (Node ≥ 20.9; Turbopack; the request gate lives in `apps/web/proxy.ts`, Next 16's name for middleware, and runs on the Node runtime).
 1. Import the GitHub repo. **Root directory:** `apps/web`. Framework: Next.js. Build command: `next build` (default). Install command: `cd ../.. && npm ci`.
    - If Vercel's monorepo detection complains, set *Root Directory* to the repo root with build command `npm run build:web` and output `apps/web/.next`.
 2. Environment variables: `API_INTERNAL_URL=https://api.chhedajewellers.com` (the Next server proxies `/api/v1/*` and `/media/*` there), optional `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_APP_VERSION`.

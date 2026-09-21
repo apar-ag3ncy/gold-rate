@@ -42,8 +42,8 @@ const settingsSchema = new Schema({
     igFeed: { type: Boolean, default: true },
     igStory: { type: Boolean, default: true },
     waCustomers: { type: Boolean, default: true },
-    staffShare: { type: Boolean, default: true },
-    rateKeywordReply: { type: Boolean, default: true },
+    staffShare: { type: Boolean, default: false },   // staff share app removed from the dashboard (Sep 2026)
+    rateKeywordReply: { type: Boolean, default: false },   // keyword auto-reply hidden from the dashboard (Sep 2026)
   },
 }, { timestamps: true });
 

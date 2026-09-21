@@ -10,6 +10,30 @@
 | 5 RATE keyword auto-reply | ✅ done (18 Sep 2026) | 47 shared + 106 API tests passing; typecheck + web build OK |
 | 6 Dashboard completion | ✅ done (18 Sep 2026) | 47 shared + 115 API tests passing; typecheck + web build OK; all screens checked in browser |
 | 7 Hardening, deployment, go-live readiness | ✅ done (18 Sep 2026) | 47 shared + 122 API tests; typecheck + web build OK; deploy files, DEPLOYMENT/RUNBOOK/GO-LIVE docs |
+| Simplified dashboard (2 screens) | ✅ done (21 Sep 2026) | Rate + Automation only; typecheck + web build OK; both screens checked in browser |
+
+## Simplified dashboard (21 Sep 2026)
+The owner asked for a plain tool with three things only: manual rate entry per karat, the IBJA rate option, and automation.
+Everything else was removed from the web app; the API and worker keep the full engine (scheduler, publishers, webhooks, alerts,
+audit, users) because that is what "automation" runs on.
+
+**Screens now**
+- **Rate** (`/`) – one-line status for today (not entered / saved but not approved / approved, posts at HH:MM / posted), date
+  (Today / Tomorrow), 24K · 22K · 18K per-gram fields (+ optional other purities), override reason, **Save → Approve**, Cancel,
+  **Preview post** (feed + story image), live message text, and the **IBJA rate** card (latest AM/PM benchmark → "Use IBJA rates"
+  pre-fills the three fields; "Refresh" fetches again). Rule 1 still holds: nothing is sent unless the admin approves.
+- **Automation** (`/automation`) – automation ON/OFF, send time, cut-off, channel toggles (Instagram post, Instagram story,
+  WhatsApp customers), one alert email, IBJA (fetch on/off, auto-draft, auto-approve, draft for today/tomorrow, prefer AM/PM),
+  Instagram + WhatsApp connections (write-only token, ids, Test, Remove), WhatsApp recipients (count, add one, paste many, remove).
+
+**Removed from the web app** – Dashboard home cards, History, Deliveries, Alerts page, Subscribers page, Users, Audit, Settings +
+Connections pages, the staff share PWA (`/staff`, manifest, service worker, icons), the alerts badge and the "Staff app" link.
+Backend routes for all of these still exist and are covered by tests; they can be re-exposed later without backend work.
+- `channels.staffShare` and `channels.rateKeywordReply` now default to **false** (no UI to turn them on); existing databases keep
+  whatever was saved. Both features still work if the flag is set directly.
+- WhatsApp template name/language, caption template, safety limits (price range, max daily change %), reminder minutes, admin
+  WhatsApp alert numbers and keyword-reply settings keep their stored/default values and are only editable via `PUT /settings`.
+- Login always lands on the Rate page (`/`) for every role; staff/viewer see the same two screens read-only where the API restricts them.
 
 ## Decisions
 - Manual rate entry only (per gram); no gold-rate API.
@@ -353,10 +377,10 @@ Settings → edit the caption template (try an unknown placeholder to see it blo
    `MEDIA_BASE_URL` = public https URL of the API (Instagram fetches the JPEGs from it).
 2. Meta: business verification; app with `instagram_business_content_publish` + WhatsApp permissions approved; IG Business account linked;
    WABA + phone number id; permanent System User token with both scopes; daily-rate template approved (image header, 4 or 5 body params).
-3. Dashboard → Settings → Connections: paste the token + IG user id (Instagram) and token + WABA id + phone number id (WhatsApp) → **Test connection** → both "Connected".
-4. Settings: WhatsApp template name/language (+ 5th-param checkbox), channel toggles, send time, automation ON.
+3. Dashboard → Automation: paste the token + IG user id (Instagram) and token + phone number id (WhatsApp) → **Test** → both "Connected".
+4. Automation: channel toggles, send time, automation ON. (WhatsApp template name/language default to `daily_gold_rate` / `en`; change via `PUT /api/v1/settings` if your approved template differs.)
 5. Meta app dashboard → Webhooks: subscribe `https://<api>/api/v1/webhooks/whatsapp` (field `messages`) with the verify token.
-6. Subscribers: import the opted-in list (CSV) – every row needs an opt-in source.
+6. Automation → WhatsApp recipients: add numbers or paste a list – only opted-in customers (pasted numbers are recorded as `manual` opt-in).
 7. Set `DRY_RUN=false`, restart API + worker, use **Test Send** then **Send Now** on an approved rate and watch Today's delivery.
 
 ## Open questions

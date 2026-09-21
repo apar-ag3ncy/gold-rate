@@ -1,245 +1,204 @@
 'use client';
-import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { addDays, istDate, istTime, nextSendDescription, MANUAL_CHANNEL_INFO } from '@chheda/shared';
-import { api, ApiError, channelLabel, fmtDate, fmtDateTime, fmtTime, perGram, triggerLabel } from '@/lib/api';
-import { RateCard, type Rate } from '@/components/RateCard';
-import { StatusBadge } from '@/components/StatusBadge';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { addDays, buildCaption, DEFAULT_CAPTION_TEMPLATE, istDate, rateFormIsDirty, rateToForm, typedToNumber } from '@chheda/shared';
+import { api, ApiError, fmtDate, fmtTime, perGram } from '@/lib/api';
 import { Alert } from '@/components/Alert';
-import { CardSkeleton, EmptyState, ErrorState, Modal } from '@/components/ui';
-import { useSession } from '@/components/Shell';
-import type { Delivery } from '@/components/DeliveryList';
+import { StatusBadge } from '@/components/StatusBadge';
+import { CardSkeleton, ErrorState, LoadingGuard } from '@/components/ui';
 
-type Summary = { today: string; tomorrow: string; todayRate: Rate | null; tomorrowRate: Rate | null };
-type Settings = { automationOn: boolean; sendTime: string; cutoffTime: string; channels: Record<string, boolean> };
-type DayStatus = { status: string; reason?: string; attempts: number; lastCheckAt?: string; sentAt?: string } | null;
-type Integration = { channel: 'instagram' | 'whatsapp'; status: string; displayName?: string; expiresAt?: string; lastError?: string };
-type WaCounts = { recipients: number; sent: number; failed: number; queued: number; delivered: number; read: number };
-type Plan = { date: string; dryRun: boolean; canSend: boolean; reason?: string; subscribers: number; rate: { k24: number; k22: number; k18: number; extraPurities: { label: string; value: number }[] } | null; channels: { channel: string; enabled: boolean; alreadySent: boolean; recipients?: number; manual?: boolean }[] };
-type IbjaLatest = { latest: { rateDate: string; session: string; perGram: { k24: string; k22: string; k18: string }; fetchedAt: string } | null; settings: { enabled: boolean; autoDraft: boolean; autoApprove: boolean }; lastFetch: { ok: boolean; error?: string; at: string } | null };
-type Data = { s: Summary; cfg: Settings; deliveries: Delivery[]; day: DayStatus; wa: WaCounts; integrations: Integration[]; dryRun: boolean; subscribers: number | null; ibja: IbjaLatest | null };
+type Rate = { date: string; k24: number; k22: number; k18: number; extraPurities: { label: string; value: number }[]; status: string; source?: string; ibja?: { rateDate: string; session: string }; overrideReason?: string; creativeUrls?: { feed?: string; story?: string }; caption?: string; validation: { warnings: string[] } };
+type Extra = { label: string; value: string };
+type Form = { k24: string; k22: string; k18: string; extraPurities: Extra[]; overrideReason: string };
+type Preview = { feedUrl: string; storyUrl: string; caption: string; saved: boolean; warnings?: string[] };
+type Ibja = { latest: { rateDate: string; session: 'AM' | 'PM'; perGram: { k24: string; k22: string; k18: string }; per10g: Record<string, string>; source: string; fetchedAt: string } | null; settings: { enabled: boolean; autoDraft: boolean; autoApprove: boolean }; lastFetch: { ok: boolean; error?: string } | null };
+type Summary = { today: string; todayRate: Rate | null };
+type Cfg = { automationOn: boolean; sendTime: string; cutoffTime: string };
+type Day = { status: string; reason?: string; sentAt?: string } | null;
+const empty: Form = { k24: '', k22: '', k18: '', extraPurities: [], overrideReason: '' };
 
-const dayLabel: Record<string, { text: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' }> = {
-  sent: { text: 'Sent', tone: 'ok' }, partial: { text: 'Partly sent', tone: 'bad' }, rate_missing: { text: 'Rate missing', tone: 'bad' }, skipped: { text: 'Skipped', tone: 'bad' }, pending: { text: 'Waiting for send time', tone: 'neutral' },
-};
+function RateScreen() {
+  const params = useSearchParams(); const router = useRouter();
+  const today = istDate();
+  const [date, setDate] = useState(params.get('date') ?? today);
+  const [form, setForm] = useState<Form>(empty);
+  const [rate, setRate] = useState<Rate | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [msg, setMsg] = useState<{ kind: 'error' | 'warning' | 'success'; title: string; items?: string[] } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [loadErr, setLoadErr] = useState('');
+  const [template, setTemplate] = useState(DEFAULT_CAPTION_TEMPLATE);
+  const [cfg, setCfg] = useState<Cfg | null>(null);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [day, setDay] = useState<Day>(null);
+  const [ibja, setIbja] = useState<Ibja | null>(null);
+  const [ibjaBusy, setIbjaBusy] = useState(false);
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
 
-function useCountdown(date: string, time: string) {
-  const [left, setLeft] = useState('');
-  useEffect(() => {
-    const target = new Date(`${date}T${time}:00+05:30`).getTime();
-    const tick = () => { const ms = target - Date.now(); if (ms <= 0) return setLeft('now'); const h = Math.floor(ms / 3600_000), m = Math.floor((ms % 3600_000) / 60_000), s = Math.floor((ms % 60_000) / 1000); setLeft(h ? `${h}h ${m}m` : `${m}m ${String(s).padStart(2, '0')}s`); };
-    tick(); const id = setInterval(tick, 1000); return () => clearInterval(id);
-  }, [date, time]);
-  return left;
-}
-
-export default function Dashboard() {
-  const [d, setD] = useState<Data | null>(null);
-  const [err, setErr] = useState('');
-  const [msg, setMsg] = useState<{ kind: 'success' | 'error' | 'warning'; title: string; items?: string[] } | null>(null);
-  const [plan, setPlan] = useState<Plan | null>(null);
-  const [planOpen, setPlanOpen] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [toggling, setToggling] = useState(false);
-  const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const session = useSession();
-  const role = session.me?.role;
-  const load = useCallback(async () => {
-    if (!role) return; // wait for the shared /auth/me
+  const loadIbja = useCallback(() => api<Ibja>('/ibja/latest').then(setIbja).catch(() => {}), []);
+  const loadStatus = useCallback(() => Promise.all([api<Summary>('/rates/summary'), api<{ settings: Cfg & { captionTemplate: string } }>('/settings'), api<{ day: Day }>('/deliveries')])
+    .then(([s, c, d]) => { setSummary(s); setCfg(c.settings); setTemplate(c.settings.captionTemplate); setDay(d.day); }).catch(() => {}), []);
+  const load = useCallback(async (d: string) => {
+    setMsg(null); setFieldErrors({}); setPreview(null); setLoadState('loading'); setLoadErr('');
     try {
-      const [s, cfg, del, integ] = await Promise.all([
-        api<Summary>('/rates/summary'), api<{ settings: Settings }>('/settings'), api<{ items: Delivery[]; day: DayStatus; whatsapp: WaCounts }>('/deliveries'),
-        api<{ items: Integration[]; dryRun: boolean }>('/integrations'),
-      ]);
-      const ibja = await api<IbjaLatest>('/ibja/latest').catch(() => null);
-      const subs = role === 'viewer' ? null : await api<{ counts: { active: number } }>('/subscribers?limit=1').then((r) => r.counts.active).catch(() => null);
-      setD({ s, cfg: cfg.settings, deliveries: del.items, day: del.day, wa: del.whatsapp, integrations: integ.items, dryRun: integ.dryRun, subscribers: subs, ibja });
-      session.refreshAlerts();
-      setErr(''); setRefreshedAt(new Date());
-    } catch (e) { setErr((e as Error).message); }
-  }, [role]);
+      const r = await api<{ rate: Rate }>(`/rates/${d}`);
+      setRate(r.rate); setForm(rateToForm(r.rate as any));
+      if (r.rate.creativeUrls?.feed && r.rate.caption) setPreview({ feedUrl: r.rate.creativeUrls.feed, storyUrl: r.rate.creativeUrls.story!, caption: r.rate.caption, saved: true });
+      setLoadState('ready');
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) { setRate(null); setForm(empty); setLoadState('ready'); }
+      else { setLoadState('error'); setLoadErr((e as Error).message); }
+    }
+  }, []);
+  useEffect(() => { loadIbja(); loadStatus(); }, [loadIbja, loadStatus]);
+  useEffect(() => { load(date); router.replace(`/?date=${date}`); }, [date, load, router]);
 
-  // auto-refresh every 30 s, paused while the tab is hidden
-  useEffect(() => {
-    load();
-    const start = () => { if (!timer.current) timer.current = setInterval(load, 30_000); };
-    const stop = () => { if (timer.current) { clearInterval(timer.current); timer.current = null; } };
-    const vis = () => { if (document.hidden) stop(); else { load(); start(); } };
-    start(); document.addEventListener('visibilitychange', vis);
-    return () => { stop(); document.removeEventListener('visibilitychange', vis); };
-  }, [load]);
+  const locked = rate?.status === 'sent'; const past = date < today; const readOnly = locked || past;
+  const dirty = rateFormIsDirty(form, rate);
+  const set = (k: keyof Form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value });
 
-  async function toggleAutomation() {
-    if (!d) return;
-    setToggling(true);
-    try { const r = await api<{ settings: Settings }>('/settings', { method: 'PUT', body: { automationOn: !d.cfg.automationOn } }); setD({ ...d, cfg: r.settings }); }
-    catch (e) { setMsg({ kind: 'error', title: (e as Error).message }); } finally { setToggling(false); }
-  }
-  async function openPlan() {
-    setMsg(null);
-    try { setPlan(await api<Plan>('/send/plan')); setPlanOpen(true); } catch (e) { setMsg({ kind: 'error', title: (e as Error).message }); }
-  }
-  async function sendNow() {
-    setSending(true);
+  async function save() {
+    setBusy(true); setMsg(null); setFieldErrors({});
     try {
-      const r = await api<{ dryRun: boolean; result: { action: string; channels?: Record<string, string>; reason?: string } }>('/send/now', { method: 'POST' });
-      const ch = r.result.channels ? Object.entries(r.result.channels).map(([k, v]) => `${channelLabel[k] ?? k}: ${v.replace('_', ' ')}`) : [];
-      setMsg({ kind: r.result.action === 'sent' ? 'success' : 'warning', title: `${r.result.action === 'sent' ? 'Sent on every automatic channel' : r.result.action === 'partial' ? 'Sent on some channels only – see below' : r.result.action}${r.dryRun ? ' (DRY RUN – logged only)' : ''}.`, items: ch });
-      setPlanOpen(false); await load();
-    } catch (e) { setMsg({ kind: 'error', title: e instanceof ApiError && e.status === 409 ? "Nothing sent: today's rate is not approved." : (e as Error).message }); }
-    finally { setSending(false); }
+      const r = await api<{ rate: Rate; warnings: string[] }>(`/rates/${date}`, { method: 'PUT', body: form });
+      setRate(r.rate); setForm(rateToForm(r.rate as any)); setPreview(null);
+      setMsg(r.warnings.length ? { kind: 'warning', title: 'Saved. Check the warnings, then Approve.', items: r.warnings } : { kind: 'success', title: 'Saved. Now click Approve to confirm this rate.' });
+      loadStatus();
+    } catch (e) { if (e instanceof ApiError) { setFieldErrors(e.details?.fields ?? {}); setMsg({ kind: 'error', title: e.message, items: e.details?.errors }); } else setMsg({ kind: 'error', title: 'Could not reach the server' }); }
+    finally { setBusy(false); }
   }
+  async function approve() {
+    if (!rate || !window.confirm(`Approve for ${fmtDate(date)}?\n\n24K ${perGram(rate.k24)}\n22K ${perGram(rate.k22)}\n18K ${perGram(rate.k18)}\n\nAutomation will post this at the scheduled time.`)) return;
+    setBusy(true);
+    try { const r = await api<{ rate: Rate }>(`/rates/${date}/approve`, { method: 'POST' }); setRate(r.rate); setMsg({ kind: 'success', title: 'Approved. It will be posted automatically at the send time.' }); loadStatus(); }
+    catch (e) { setMsg({ kind: 'error', title: (e as Error).message, items: (e as ApiError).details?.errors }); } finally { setBusy(false); }
+  }
+  async function cancel() {
+    const reason = window.prompt('Why are you cancelling this rate? (Nothing will be posted for this date)'); if (!reason) return;
+    try { const r = await api<{ rate: Rate }>(`/rates/${date}/cancel`, { method: 'POST', body: { reason } }); setRate(r.rate); setMsg({ kind: 'warning', title: 'Cancelled. Nothing will be posted for this date.' }); loadStatus(); }
+    catch (e) { setMsg({ kind: 'error', title: (e as Error).message }); }
+  }
+  function useIbja() {
+    if (!ibja?.latest) return;
+    setForm({ ...form, k24: ibja.latest.perGram.k24, k22: ibja.latest.perGram.k22, k18: ibja.latest.perGram.k18 });
+    setMsg({ kind: 'success', title: `Filled from IBJA ${ibja.latest.session} rate of ${fmtDate(ibja.latest.rateDate)}. Save, then Approve.` });
+  }
+  async function refreshIbja() {
+    setIbjaBusy(true); setMsg(null);
+    try { await api('/ibja/refresh', { method: 'POST' }); } catch (e) { setMsg({ kind: 'error', title: `IBJA fetch failed: ${(e as Error).message}` }); }
+    finally { await loadIbja(); setIbjaBusy(false); }
+  }
+  async function doPreview() {
+    setPreviewBusy(true); setMsg(null);
+    try {
+      const p = rate && !dirty && rate.status !== 'cancelled' ? await api<Preview>(`/preview/${date}`, { method: 'POST' }) : await api<Preview>('/preview', { method: 'POST', body: { date, ...form } });
+      setPreview(p);
+    } catch (e) { if (e instanceof ApiError) { setFieldErrors(e.details?.fields ?? {}); setMsg({ kind: 'error', title: e.message, items: e.details?.errors }); } else setMsg({ kind: 'error', title: 'Could not reach the server' }); }
+    finally { setPreviewBusy(false); }
+  }
+  const liveCaption = useMemo(() => {
+    const k24 = typedToNumber(form.k24), k22 = typedToNumber(form.k22), k18 = typedToNumber(form.k18);
+    if (k24 == null || k22 == null || k18 == null) return null;
+    const extras = form.extraPurities.filter((p) => p.label.trim() && typedToNumber(p.value) != null).map((p) => ({ label: p.label.trim(), value: typedToNumber(p.value)! }));
+    try { return buildCaption(template, { date, k24, k22, k18, extraPurities: extras }); } catch { return null; }
+  }, [form, date, template]);
 
-  const next = d ? nextSendDescription(istDate(), istTime(), d.cfg.sendTime, addDays) : null;
-  const countdown = useCountdown(next?.date ?? istDate(), next?.time ?? '07:00');
-
-  if (err && !d) return <ErrorState message={err} retry={load} />;
-  if (!d) return <div className="grid gap-4 md:grid-cols-2"><CardSkeleton lines={4} /><CardSkeleton lines={4} /><CardSkeleton /><CardSkeleton /></div>;
-
-  const { s, cfg, day } = d;
-  const rateStatus = s.todayRate?.status ?? 'missing';
-  const banner = (() => {
-    if (day?.status === 'sent' || rateStatus === 'sent') return { tone: 'ok', title: "Today is handled – the rate went out.", text: `Sent ${day?.sentAt ? fmtTime(day.sentAt) : ''}${d.dryRun ? ' (DRY RUN)' : ''}.` };
-    if (day?.status === 'partial') return { tone: 'bad', title: 'Sent on some channels only.', text: day.reason ?? 'Retry the failed channels below.' };
-    if (day?.status === 'skipped') return { tone: 'bad', title: 'Today was skipped.', text: day.reason ?? 'The cut-off passed without an approved rate.' };
-    if (rateStatus === 'approved') return { tone: 'ok', title: `Today's rate is approved – sends at ${cfg.sendTime} IST${cfg.automationOn ? '' : ' once automation is ON'}.`, text: day?.status === 'rate_missing' ? 'The scheduler will pick it up on its next 15-minute check.' : `Next send in ${countdown}.` };
-    if (rateStatus === 'draft') return { tone: 'warn', title: "Today's rate is saved but NOT approved.", text: `Approve it before ${cfg.cutoffTime} IST – the system will never send an old rate.` };
-    if (rateStatus === 'cancelled') return { tone: 'bad', title: "Today's rate was cancelled.", text: 'Save and approve a new rate if something should go out today.' };
-    return { tone: 'bad', title: "Today's rate has not been entered.", text: `Enter and approve it before ${cfg.cutoffTime} IST – nothing is sent until then.` };
+  const todayStatus = (() => {
+    const t = summary?.todayRate; if (!cfg) return null;
+    if (day?.status === 'sent' || t?.status === 'sent') return { tone: 'ok', text: `Today's rate was posted${day?.sentAt ? ` at ${fmtTime(day.sentAt)}` : ''}.` };
+    if (t?.status === 'approved') return { tone: 'ok', text: `Today's rate is approved – ${cfg.automationOn ? `posts at ${cfg.sendTime} IST` : 'automation is OFF, nothing will be posted'}.` };
+    if (t?.status === 'draft') return { tone: 'warn', text: `Today's rate is saved but not approved. Approve before ${cfg.cutoffTime} IST.` };
+    return { tone: 'bad', text: `Today's rate is not entered. Nothing is posted until you enter and approve it.` };
   })();
-  const toneCls = { ok: 'border-emerald-300/30 bg-emerald-400/10', warn: 'border-amber-300/30 bg-amber-400/10', bad: 'border-red-300/30 bg-red-500/10', neutral: 'border-cream-200/15 bg-cream/[0.04]' }[banner.tone as 'ok'];
-  const ig = d.integrations.find((i) => i.channel === 'instagram'), wa = d.integrations.find((i) => i.channel === 'whatsapp');
-  const expiryDays = (i?: Integration) => i?.expiresAt ? Math.floor((new Date(i.expiresAt).getTime() - Date.now()) / 86_400_000) : null;
-  const autoRows = d.deliveries.filter((x) => !x.channel.endsWith('_manual') && x.trigger !== 'keyword');
-  const manualRows = d.deliveries.filter((x) => x.channel.endsWith('_manual'));
-  const failed = autoRows.filter((x) => x.status === 'failed');
-  const isAdmin = role === 'admin';
+  const placeholders: Record<'k24' | 'k22' | 'k18', string> = { k24: 'e.g. 15305.6', k22: 'e.g. 14019.9', k18: 'e.g. 11479.2' };
+  const field = (k: 'k24' | 'k22' | 'k18', label: string, hero = false) => (
+    <div className={`rounded-2xl border p-3.5 ${fieldErrors[k] ? 'border-red-300/50 bg-red-500/10' : hero ? 'border-copper/45 bg-copper/10' : 'border-cream-200/12 bg-cream/[0.04]'}`}>
+      <label className="mb-1.5 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-copper" htmlFor={k}>{label}<span className="font-normal normal-case tracking-normal text-sand">per gram</span></label>
+      <div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-sand">₹</span>
+        <input id={k} inputMode="decimal" placeholder={placeholders[k]} className={`input kbd-money pl-8 pr-9 text-lg font-semibold ${fieldErrors[k] ? 'border-red-400' : ''}`} value={form[k]} onChange={set(k)} disabled={readOnly} aria-invalid={!!fieldErrors[k]} />
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-sand">/g</span></div>
+      {fieldErrors[k] && <p className="mt-1.5 text-xs text-red-300">{fieldErrors[k]}</p>}
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h1 className="page-title">Dashboard</h1><p className="text-sm text-cream-200/70">{fmtDate(s.today)} · refreshed {refreshedAt ? fmtTime(refreshedAt) : '…'} · updates every 30 s</p></div>
-        <div className="flex flex-wrap gap-2">
-          {isAdmin && rateStatus === 'approved' && <button className="btn-secondary" onClick={openPlan}>Send now</button>}
-          <Link className="btn-primary" href={`/rates?date=${rateStatus === 'sent' ? s.tomorrow : s.today}`}>+ Enter rate</Link>
-        </div>
-      </div>
-      {msg && <Alert {...msg} />}
-      {err && <ErrorState message={`Refresh failed: ${err}`} retry={load} />}
+    <div className="space-y-5">
+      {todayStatus && <div role="status" className={`rounded-2xl border px-4 py-3 text-sm ${todayStatus.tone === 'ok' ? 'border-emerald-300/30 bg-emerald-400/10 text-emerald-50' : todayStatus.tone === 'warn' ? 'border-amber-300/30 bg-amber-400/10 text-amber-50' : 'border-red-300/30 bg-red-500/10 text-red-100'}`}>{todayStatus.text}{day?.reason && day.status !== 'sent' && <span className="block text-xs opacity-80">{day.reason}</span>}</div>}
 
-      <section role={banner.tone === 'ok' ? 'status' : 'alert'} className={`rounded-2xl border p-4 backdrop-blur-md sm:p-5 ${toneCls}`}>
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="eyebrow">Is today handled?</p>
-            <h2 className="mt-1 font-serif text-2xl font-light sm:text-3xl">{banner.title}</h2>
-            <p className="mt-1 text-sm text-cream-200/85">{banner.text}</p>
-            <div className="mt-2 flex flex-wrap items-center gap-2"><StatusBadge status={rateStatus} />{day && <span className="chip">Day: {dayLabel[day.status]?.text ?? day.status}</span>}</div>
+      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+        <section className="card space-y-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div><h1 className="page-title">Gold rate</h1><p className="text-sm text-cream-200/70">Type the per-gram rate for each karat, or use the IBJA rate. Values are posted exactly as entered.</p></div>
           </div>
-          {s.todayRate && (
-            <dl className="grid gap-2 text-center sm:grid-cols-3">
-              {([['24K', s.todayRate.k24], ['22K', s.todayRate.k22], ['18K', s.todayRate.k18]] as const).map(([k, v]) => (
-                <div key={k} className="flex items-center justify-between gap-3 rounded-xl border border-cream-200/15 bg-emerald-950/40 px-3 py-2 sm:block"><dt className="text-[10px] uppercase tracking-wider text-copper">{k}</dt><dd className="kbd-money whitespace-nowrap text-lg font-bold">{perGram(v)}</dd></div>
-              ))}
-            </dl>
-          )}
-        </div>
-      </section>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <section className="card"><h2 className="card-title">Next send</h2><p className="mt-2 font-serif text-3xl font-light">{countdown}</p><p className="hint">{next && `${fmtDate(next.date)} ${next.time} IST`} · cut-off {cfg.cutoffTime}</p></section>
-        <section className="card">
-          <div className="flex items-start justify-between"><h2 className="card-title">Automation</h2>
-            {isAdmin && <button type="button" role="switch" aria-checked={cfg.automationOn} aria-label="Automation" disabled={toggling} onClick={toggleAutomation} className={`relative h-6 w-11 shrink-0 rounded-full border transition ${cfg.automationOn ? 'border-copper bg-copper' : 'border-cream-200/20 bg-cream/15'}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${cfg.automationOn ? 'left-5' : 'left-0.5'}`} /></button>}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-cream-200/12 bg-cream/[0.04] p-3">
+            <div className="flex flex-wrap items-end gap-3">
+              <div><label className="label mb-1 text-xs" htmlFor="date">Rate for</label><input id="date" type="date" className="input py-1.5" min={today} value={date} onChange={(e) => e.target.value && setDate(e.target.value)} /></div>
+              <div className="flex gap-1.5 pb-0.5">
+                <button type="button" className={`btn-secondary btn-sm ${date === today ? 'ring-2 ring-copper/60' : ''}`} onClick={() => setDate(today)}>Today</button>
+                <button type="button" className={`btn-secondary btn-sm ${date === addDays(today, 1) ? 'ring-2 ring-copper/60' : ''}`} onClick={() => setDate(addDays(today, 1))}>Tomorrow</button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-sm"><span className="font-serif text-base">{fmtDate(date)}</span><StatusBadge status={rate?.status ?? 'missing'} />{rate?.source === 'ibja' && <span className="chip">from IBJA</span>}</div>
           </div>
-          <p className={`mt-2 text-2xl font-bold ${cfg.automationOn ? 'text-emerald-300' : 'text-red-300'}`}>{cfg.automationOn ? 'ON' : 'OFF'}</p>
-          <p className="hint">{cfg.automationOn ? `Sends daily at ${cfg.sendTime} IST` : 'Nothing is sent automatically'}{d.dryRun && ' · DRY RUN'}</p>
+          {loadState === 'error' && <ErrorState message={`Could not load the rate for ${fmtDate(date)}: ${loadErr}`} retry={() => load(date)} />}
+          {locked && <Alert kind="warning" title="This rate has been posted and is locked." />}
+          {past && !locked && <Alert kind="warning" title="Past dates are read-only." />}
+          <div className="grid gap-3 sm:grid-cols-3">{field('k24', '24K Gold', true)}{field('k22', '22K Gold')}{field('k18', '18K Gold')}</div>
+          <div className="rounded-2xl border border-cream-200/12 bg-cream/[0.04] p-3.5">
+            <div className="mb-2 flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-wider text-copper">Other purities <span className="font-normal normal-case tracking-normal text-sand">optional</span></p>
+              <button type="button" className="btn-secondary btn-sm" disabled={readOnly || form.extraPurities.length >= 10} onClick={() => setForm({ ...form, extraPurities: [...form.extraPurities, { label: '', value: '' }] })}>+ Add</button></div>
+            {form.extraPurities.map((p, i) => (
+              <div key={i} className="mb-2 grid grid-cols-[1fr_1fr_auto] gap-2">
+                <input className="input" placeholder="Label e.g. 14K" value={p.label} disabled={readOnly} onChange={(e) => { const x = [...form.extraPurities]; x[i] = { ...p, label: e.target.value }; setForm({ ...form, extraPurities: x }); }} />
+                <input className="input kbd-money" inputMode="decimal" placeholder="₹ per gram" value={p.value} disabled={readOnly} onChange={(e) => { const x = [...form.extraPurities]; x[i] = { ...p, value: e.target.value }; setForm({ ...form, extraPurities: x }); }} />
+                <button type="button" className="btn-danger btn-sm" disabled={readOnly} aria-label="Remove" onClick={() => setForm({ ...form, extraPurities: form.extraPurities.filter((_, j) => j !== i) })}>✕</button>
+              </div>
+            ))}
+            {Object.entries(fieldErrors).filter(([k]) => k.startsWith('extraPurities')).map(([k, v]) => <p key={k} className="text-xs text-red-300">{k}: {v}</p>)}
+          </div>
+          <div><label className="label" htmlFor="ov">Reason <span className="font-normal text-sand">(only needed if the rate changed a lot since yesterday)</span></label><input id="ov" className="input" value={form.overrideReason} onChange={set('overrideReason')} disabled={readOnly} maxLength={300} /></div>
+          {msg && <Alert {...msg} />}
+          <div className="divider-gold" />
+          <div className="flex flex-wrap items-center gap-2">
+            {!readOnly && <button className="btn-primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : rate ? 'Update rate' : 'Save rate'}</button>}
+            {!readOnly && <button className="btn-secondary" onClick={approve} disabled={busy || rate?.status !== 'draft' || dirty} title={dirty ? 'Save your changes first' : undefined}>✓ Approve</button>}
+            <button className="btn-secondary" onClick={doPreview} disabled={previewBusy || busy || (past && !rate)}>{previewBusy ? 'Rendering…' : 'Preview post'}</button>
+            {!readOnly && rate && rate.status !== 'cancelled' && <button className="btn-danger ml-auto" onClick={cancel} disabled={busy}>Cancel rate</button>}
+          </div>
         </section>
-        {[{ i: ig, label: 'Instagram', href: '/settings/connections' }, { i: wa, label: 'WhatsApp', href: '/settings/connections' }].map(({ i, label, href }) => {
-          const days = expiryDays(i); const ok = i?.status === 'connected';
-          return (
-            <section key={label} className="card">
-              <h2 className="card-title">{label}</h2>
-              <p className={`mt-2 text-lg font-semibold ${ok ? 'text-emerald-300' : i?.status === 'error' ? 'text-red-300' : 'text-sand'}`}>{ok ? (i?.displayName ?? 'Connected') : i?.status === 'error' ? 'Error' : 'Not connected'}</p>
-              <p className="hint">
-                {days !== null && <span className={days <= 7 ? 'text-amber-200' : ''}>Token: {days <= 0 ? 'expired' : `${days} days left`}</span>}
-                {days === null && ok && 'Token: no expiry'}
-                {label === 'WhatsApp' && d.subscribers !== null && <>{(days !== null || ok) ? ' · ' : ''}{d.subscribers} subscribers</>}
-                {i?.lastError && <span className="block text-red-200">{i.lastError}</span>}
-              </p>
-              <Link href={href} className="mt-1 inline-block text-xs text-copper underline">Connections</Link>
-            </section>
-          );
-        })}
-        <section className={`card ${session.openAlerts ? 'border-red-300/30' : ''}`}><h2 className="card-title">Alerts</h2><p className={`mt-2 text-2xl font-bold ${session.openAlerts ? 'text-red-300' : 'text-emerald-300'}`}>{session.openAlerts}</p><p className="hint">unacknowledged</p><Link href="/alerts" className="mt-1 inline-block text-xs text-copper underline">Open alerts</Link></section>
+
+        <aside className="space-y-4">
+          <section className="card">
+            <div className="mb-2 flex items-center justify-between gap-2"><h2 className="card-title">IBJA rate</h2>{ibja?.latest && <span className="chip">{ibja.latest.session} · {fmtDate(ibja.latest.rateDate)}</span>}</div>
+            {!ibja ? <CardSkeleton lines={3} /> : !ibja.settings.enabled ? <p className="hint">IBJA is switched off in Automation.</p> : !ibja.latest ? <p className="hint">No IBJA rate fetched yet.{ibja.lastFetch && !ibja.lastFetch.ok && ` Last attempt failed: ${ibja.lastFetch.error}`}</p> : (
+              <>
+                <dl className="space-y-1.5">
+                  {([['24K', ibja.latest.perGram.k24, '999'], ['22K', ibja.latest.perGram.k22, '916'], ['18K', ibja.latest.perGram.k18, '750']] as const).map(([k, v, p]) => (
+                    <div key={k} className="flex items-center justify-between rounded-xl border border-cream-200/15 bg-emerald-950/40 px-3 py-2"><dt className="text-xs uppercase tracking-wider text-copper">{k} <span className="text-sand">({p})</span></dt><dd className="kbd-money font-bold">₹{v}/g</dd></div>
+                  ))}
+                </dl>
+                <p className="hint mt-2">IBJA per-10 g ÷ 10, exact · fetched {fmtTime(ibja.latest.fetchedAt)}{ibja.settings.autoDraft && ' · auto-draft ON'}</p>
+                {!readOnly && <div className="mt-3 flex flex-wrap gap-2"><button className="btn-primary btn-sm" onClick={useIbja}>Use IBJA rates</button><button className="btn-secondary btn-sm" onClick={refreshIbja} disabled={ibjaBusy}>{ibjaBusy ? 'Fetching…' : 'Refresh'}</button></div>}
+              </>
+            )}
+          </section>
+          <section className="card"><h2 className="card-title mb-2">Message</h2><pre className="whitespace-pre-wrap rounded-xl border border-cream-200/12 bg-cream/[0.04] p-3 font-sans text-sm leading-relaxed">{liveCaption ?? 'Enter 24K, 22K and 18K to see the message.'}</pre></section>
+        </aside>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
-        <section className="card">
-          <div className="mb-3 flex items-center justify-between gap-2"><h2 className="card-title">Today&apos;s deliveries</h2>
-            <div className="flex gap-2">{isAdmin && failed.length > 0 && rateStatus !== 'sent' && <button className="btn-secondary btn-sm" onClick={openPlan}>Retry {failed.length} failed</button>}<Link href="/deliveries" className="btn-secondary btn-sm">Full log</Link></div></div>
-          {autoRows.length === 0 ? <EmptyState title="Nothing sent yet today" hint={rateStatus === 'approved' ? `The scheduler sends at ${cfg.sendTime} IST.` : 'Deliveries appear here once the approved rate goes out.'} /> : (
-            <ul className="divide-y divide-cream-200/10">
-              {autoRows.map((x) => (
-                <li key={x.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
-                  <span className="min-w-[10rem] font-medium">{channelLabel[x.channel] ?? x.channel}</span>
-                  <span className="text-xs text-cream-200/70">{triggerLabel[x.trigger] ?? x.trigger} · {fmtTime(x.createdAt)}{x.stats && ` · ${x.stats.sent}/${x.stats.total} sent`}{x.dryRun && ' · dry run'}</span>
-                  <span className="ml-auto flex items-center gap-2"><StatusBadge status={x.status} short />{x.status === 'failed' && isAdmin && <button className="btn-secondary btn-sm" onClick={openPlan}>Retry</button>}</span>
-                  {x.error && <p className="w-full text-xs text-red-200">{x.error}</p>}
-                </li>
-              ))}
-            </ul>
-          )}
-          {d.wa.recipients > 0 && <p className="hint mt-2">WhatsApp customers today: {d.wa.sent} sent · {d.wa.failed} failed · {d.wa.delivered} delivered · {d.wa.read} read</p>}
-        </section>
-        <section className="card">
-          <div className="mb-3 flex items-center justify-between"><h2 className="card-title">Staff share</h2><Link href="/staff" className="btn-secondary btn-sm">Staff app</Link></div>
-          {manualRows.length === 0 ? <EmptyState title="No staff tasks yet" hint="Created automatically when the rate goes out." /> : (
-            <ul className="space-y-2 text-sm">
-              {manualRows.map((x) => (
-                <li key={x.id} className="surface flex items-center gap-3 px-3 py-2">
-                  <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs ${x.status === 'success' ? 'bg-emerald-400/20 text-emerald-100' : 'bg-copper/20 text-peach'}`}>{x.status === 'success' ? '✓' : '…'}</span>
-                  <div className="min-w-0 flex-1"><p className="font-medium">{MANUAL_CHANNEL_INFO[x.channel as keyof typeof MANUAL_CHANNEL_INFO]?.label ?? x.channel}</p><p className="hint">{x.status === 'success' ? `Posted by ${x.postedBy} · ${fmtTime(x.postedAt)}` : `Pending${x.reminderSentAt ? ' · reminder sent' : ''} · since ${fmtTime(x.createdAt)}`}</p></div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </div>
-
-      {d.ibja?.settings.enabled && (
-        <section className="card">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div><h2 className="card-title">IBJA benchmark</h2><p className="hint">{d.ibja.latest ? `${d.ibja.latest.session} rate of ${fmtDate(d.ibja.latest.rateDate)} · fetched ${fmtTime(d.ibja.latest.fetchedAt)}` : 'not fetched yet'}{d.ibja.lastFetch && !d.ibja.lastFetch.ok && <span className="text-red-200"> · last fetch failed: {d.ibja.lastFetch.error}</span>} · auto-draft {d.ibja.settings.autoDraft ? 'ON' : 'OFF'}{d.ibja.settings.autoApprove && ' · auto-approve ON'}</p></div>
-            {d.ibja.latest && <dl className="flex gap-2 text-center">{([['24K', d.ibja.latest.perGram.k24], ['22K', d.ibja.latest.perGram.k22], ['18K', d.ibja.latest.perGram.k18]] as const).map(([k, v]) => <div key={k} className="rounded-xl border border-cream-200/15 bg-emerald-950/40 px-3 py-1.5"><dt className="text-[10px] uppercase tracking-wider text-copper">{k}</dt><dd className="kbd-money font-bold">₹{v}/g</dd></div>)}</dl>}
+      {preview && (
+        <section className="glass-dark space-y-4 p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-2"><h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-peach">Post preview{!preview.saved && ' · unsaved values'}</h2><button className="btn-secondary btn-sm" onClick={() => setPreview(null)}>Close</button></div>
+          <div className="grid gap-5 md:grid-cols-[1fr_auto]">
+            <img src={preview.feedUrl} alt="Instagram post" className="w-full max-w-md rounded-xl border border-white/10 shadow-2xl" />
+            <img src={preview.storyUrl} alt="Instagram story" className="mx-auto w-full max-w-[220px] rounded-xl border border-white/10 shadow-2xl" />
           </div>
         </section>
       )}
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <RateCard title="Today's rate" date={s.today} rate={s.todayRate} action={s.todayRate?.status !== 'sent' && <Link className="btn-secondary btn-sm" href={`/rates?date=${s.today}`}>{s.todayRate ? 'Edit / approve' : "Enter today's rate"}</Link>} />
-        <RateCard title="Tomorrow's rate" date={s.tomorrow} rate={s.tomorrowRate} action={<Link className="btn-secondary btn-sm" href={`/rates?date=${s.tomorrow}`}>{s.tomorrowRate ? 'Edit / approve' : "Enter tomorrow's rate"}</Link>} />
-      </div>
-
-      <Modal open={planOpen} title="Send now?" onClose={() => setPlanOpen(false)}
-        footer={<><button className="btn-secondary" onClick={() => setPlanOpen(false)}>Cancel</button>{plan?.canSend && <button className="btn-primary" onClick={sendNow} disabled={sending}>{sending ? 'Sending…' : plan.dryRun ? 'Send now (dry run)' : 'Send now'}</button>}</>}>
-        {!plan ? <p>Loading…</p> : !plan.canSend ? <Alert kind="warning" title={plan.reason ?? 'Cannot send'} /> : (
-          <>
-            <p>This sends <b>{fmtDate(plan.date)}</b>&apos;s approved rate right now{plan.dryRun && <> — <b>DRY RUN</b>: it will be logged, not posted</>}.</p>
-            {plan.rate && <p className="kbd-money">24K {perGram(plan.rate.k24)} · 22K {perGram(plan.rate.k22)} · 18K {perGram(plan.rate.k18)}{plan.rate.extraPurities.map((p) => ` · ${p.label} ${perGram(p.value)}`)}</p>}
-            <ul className="space-y-1">
-              {plan.channels.map((c) => (
-                <li key={c.channel} className="flex items-center justify-between gap-2 rounded-lg bg-cream/[0.04] px-3 py-1.5">
-                  <span>{channelLabel[c.channel] ?? c.channel}{c.recipients !== undefined && <span className="text-cream-200/70"> · {c.recipients} opted-in customers</span>}</span>
-                  <span className="text-xs">{!c.enabled ? 'off in settings' : c.alreadySent ? 'already sent – skipped' : c.manual ? 'task for staff' : 'will send'}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="hint">Channels that already succeeded are never repeated.</p>
-          </>
-        )}
-      </Modal>
     </div>
   );
 }
+
+export default function Page() { return <Suspense fallback={<LoadingGuard><CardSkeleton lines={8} /></LoadingGuard>}><RateScreen /></Suspense>; }

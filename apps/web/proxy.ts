@@ -9,4 +9,4 @@ export function proxy(req: NextRequest) {
   if (!has && !isLogin) return NextResponse.redirect(new URL('/login', req.url));
   return NextResponse.next();
 }
-export const config = { matcher: ['/((?!api|_next|favicon.ico|sw.js|manifest.webmanifest|icons).*)'] };
+export const config = { matcher: ['/((?!api|_next|favicon.ico).*)'] };

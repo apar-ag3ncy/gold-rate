@@ -8,8 +8,6 @@ const montserrat = Montserrat({ subsets: ['latin'], weight: ['400', '500', '600'
 
 export const metadata: Metadata = {
   title: 'Chheda Gold Rate Admin', robots: { index: false, follow: false },
-  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Chheda Rate' },
-  icons: { apple: '/icons/apple-touch-icon.png' },
 };
 export const viewport = { themeColor: '#0b3a2d', width: 'device-width', initialScale: 1, viewportFit: 'cover' as const };
 

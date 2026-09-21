@@ -10,7 +10,7 @@ export interface ParsedIbjaPage {
 }
 
 /** digits only and > 0 – IBJA shows '0' / blank on holidays and before publication, which is NOT a rate */
-const num = (s: string | undefined) => { const t = (s ?? '').replace(/<[^>]+>/g, '').replace(/&nbsp;|&#160;|\u00a0|\s|,/g, ''); return /^\d+(\.\d+)?$/.test(t) && Number(t) > 0 ? t : undefined; };
+const num = (s: string | undefined) => { const t = (s ?? '').replace(/<[^>]+>/g, '').replace(/&nbsp;|&#160;|\u00a0|\s|,/g, ''); return t.length <= 12 && /^\d+(\.\d+)?$/.test(t) && Number(t) > 0 ? t : undefined; };
 const span = (html: string, id: string) => num(new RegExp(`id="${id}"[^>]*>([\\s\\S]{0,200}?)</span>`).exec(html)?.[1]);
 
 /** Parses the ibjarates.com homepage. Pure – tested against a saved fixture. Throws when the expected markup is missing. */

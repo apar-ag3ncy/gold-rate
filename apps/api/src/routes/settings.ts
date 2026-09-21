@@ -75,6 +75,7 @@ export function settingsRouter() {
     if (whatsapp) for (const [k, v] of Object.entries(whatsapp)) if (v !== undefined) s.set(`whatsapp.${k}`, v);
     if (keywordReply) for (const [k, v] of Object.entries(keywordReply)) if (v !== undefined) s.set(`keywordReply.${k}`, v);
     if (ibja) for (const [k, v] of Object.entries(ibja)) if (v !== undefined) s.set(`ibja.${k}`, v);
+    if (ibja?.autoDraft === false) s.set('ibja.autoApprove', false);   // switching drafting off always switches hands-off approval off too
     if (s.ibja?.autoApprove && !s.ibja?.autoDraft) throw unprocessable('Auto-approve needs auto-draft to be on', { fields: { 'ibja.autoApprove': 'Turn on auto-draft first' } });
     if (adminAlerts) {
       const { whatsappNumbers, ...a } = adminAlerts;

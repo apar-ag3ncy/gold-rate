@@ -51,7 +51,7 @@ export class IbjaApiSource implements IbjaRateSource {
         const key = `${iso}:${session}`;
         const p = byKey.get(key) ?? {};
         const gold = String(r.GoldRate ?? '').replace(/,/g, '').trim();
-        if (/^\d+(\.\d+)?$/.test(gold) && Number(gold) > 0) (p as any)[purity] = gold; else dropped++;
+        if (gold.length <= 12 && /^\d+(\.\d+)?$/.test(gold) && Number(gold) > 0) (p as any)[purity] = gold; else dropped++;
         const silver = String(r.SilverRate ?? '').replace(/,/g, '').trim();
         if (/^\d+(\.\d+)?$/.test(silver) && Number(silver) > 0 && !p.silver999) p.silver999 = silver;
         byKey.set(key, p);

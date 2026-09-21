@@ -272,6 +272,15 @@ describe('hardening from review (2)', () => {
     // scheduled slots are not blocked by the reserve
     expect((await fetchAndStoreIbja(cfg, { fetchFn: apiRows([{ status: 'success', message: 'No Record Found' }]), now: NOW, slot: '12:40' })).ok).toBe(true);
   });
+  it('settings: turning auto-draft off also clears auto-approve; empty fetch times are rejected; oversized numbers are never rates', async () => {
+    expect((await admin.put('/api/v1/settings', { ibja: { autoDraft: true, autoApprove: true } })).status).toBe(200);
+    const off = await admin.put('/api/v1/settings', { ibja: { autoDraft: false } });
+    expect(off.status).toBe(200);
+    expect(off.body.settings.ibja).toMatchObject({ autoDraft: false, autoApprove: false });
+    expect((await admin.put('/api/v1/settings', { ibja: { fetchTimes: [] } })).status).toBe(422);
+    const huge = fixture.replace(/id="lblGold999_PM"[^>]*>/, 'id="lblGold999_PM">1234567890123456');
+    expect(parseIbjaHomepage(huge).today.PM).toBeUndefined();
+  });
   it('future-dated upstream rows are ignored', async () => {
     const src = new IbjaApiSource({ IBJA_API_TOKEN: 'T', IBJA_API_BASE: 'x' }, apiRows([['999', '153056'], ['916', '140199'], ['750', '114792']].map(([Purity, GoldRate]) => ({ RateDate: '25/09/2026', RateTime: '12AM', Purity, GoldRate }))));
     await expect(src.fetchRecent(NOW)).rejects.toMatchObject({ message: /none matched/ });

@@ -54,7 +54,7 @@ export function createApp(cfg: Config, deps: AppDeps = {}) {
   app.use(express.json({ limit: '100kb', verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
   app.use(cookieParser());
 
-  app.get('/health', (_req, res) => {
+  app.get(['/health', '/api/health'], (_req, res) => {
     const db = mongoose.connection.readyState === 1;
     res.status(db ? 200 : 503).json({ ok: db, db: db ? 'up' : 'down', dryRun: cfg.DRY_RUN });
   });
@@ -68,7 +68,7 @@ export function createApp(cfg: Config, deps: AppDeps = {}) {
 
   if (storage.driver === 'mongo') {
     // images stored in MongoDB (serverless hosting) – same public contract as the local driver
-    app.use('/media', async (req, res, next) => {
+    app.use(['/media', '/api/media'], async (req, res, next) => {
       if (req.method !== 'GET' && req.method !== 'HEAD') { next(); return; }
       try {
         const key = decodeURIComponent(req.path.replace(/^\/+/, ''));

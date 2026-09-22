@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@chheda/api": "*",
     "@chheda/shared": "*",
     "@sentry/nextjs": "^10.75.0",
     "next": "^16.3.5",

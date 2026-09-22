@@ -23,7 +23,7 @@ const empty: Form = { k24: '', k22: '', k18: '', extraPurities: [], overrideReas
 function RateScreen() {
   const params = useSearchParams(); const router = useRouter();
   const today = istDate();
-  const [date, setDate] = useState(params.get('date') ?? today);
+  const [date, setDate] = useState(params?.get('date') ?? today);
   const [form, setForm] = useState<Form>(empty);
   const [rate, setRate] = useState<Rate | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});

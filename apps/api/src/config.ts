@@ -70,6 +70,12 @@ const schema = z.object({
 export type Config = z.infer<typeof schema> & { MEDIA_BASE_URL: string; WEB_PUBLIC_URL: string };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  if (env.VERCEL) {
+    // Running inside a Vercel function: no disk (images go to MongoDB) and the site's own https address is known.
+    const host = (env.VERCEL_ENV === 'production' && env.VERCEL_PROJECT_PRODUCTION_URL) || env.VERCEL_URL;
+    const site = host ? `https://${host}` : undefined;
+    env = { STORAGE_DRIVER: 'mongo', WEB_ORIGIN: site, WEB_PUBLIC_URL: site, MEDIA_BASE_URL: site, ...Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined && v !== '')) } as unknown as NodeJS.ProcessEnv;
+  }
   const parsed = schema.safeParse(env);
   if (!parsed.success) {
     const msg = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('\n');

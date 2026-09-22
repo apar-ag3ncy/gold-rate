@@ -1,31 +1,35 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { FONT_FILES } from './fontData';
 
 /**
- * Fonts are bundled in apps/api/assets/fonts (SIL Open Font License) so the creative renders identically
- * on every machine. libvips/pango find them through a private fontconfig file – no system fonts involved.
+ * Fonts ship inside the code (fontData.ts, generated from assets/fonts – SIL Open Font License) so the creative renders
+ * identically on every machine and inside any bundle (Next.js on Vercel). At first use they are written to a private
+ * directory in the OS temp folder and libvips/pango find them through a private fontconfig file – no system fonts involved.
  * Must run before the first text render (pango picks its backend + config lazily).
  */
-export const FONT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../assets/fonts');
+const BASE_DIR = path.join(os.tmpdir(), 'chheda-fontconfig');
+export const FONT_DIR = path.join(BASE_DIR, 'fonts');
 export const FONT_SERIF = 'Marcellus';
 export const FONT_SANS = 'Poppins';
 
 let configured = false;
 export function configureFonts(): string {
   if (configured) return process.env.FONTCONFIG_FILE!;
-  for (const f of ['Marcellus-Regular.ttf', 'Poppins-Regular.ttf', 'Poppins-SemiBold.ttf']) {
-    if (!fs.existsSync(path.join(FONT_DIR, f))) throw new Error(`Bundled font missing: ${path.join(FONT_DIR, f)}`);
+  fs.mkdirSync(FONT_DIR, { recursive: true });
+  fs.mkdirSync(path.join(BASE_DIR, 'cache'), { recursive: true });
+  for (const [name, b64] of Object.entries(FONT_FILES)) {
+    const p = path.join(FONT_DIR, name);
+    const buf = Buffer.from(b64, 'base64');
+    if (!fs.existsSync(p) || fs.statSync(p).size !== buf.length) fs.writeFileSync(p, buf);
   }
-  const dir = path.join(os.tmpdir(), 'chheda-fontconfig');
-  fs.mkdirSync(path.join(dir, 'cache'), { recursive: true });
-  const conf = path.join(dir, 'fonts.conf');
+  const conf = path.join(BASE_DIR, 'fonts.conf');
   const xml = `<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
   <dir>${FONT_DIR}</dir>
-  <cachedir>${path.join(dir, 'cache')}</cachedir>
+  <cachedir>${path.join(BASE_DIR, 'cache')}</cachedir>
   <config></config>
 </fontconfig>
 `;

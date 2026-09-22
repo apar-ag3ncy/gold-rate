@@ -16,7 +16,7 @@ const nav: { href: string; label: string; exact?: boolean; admin?: boolean }[] =
 
 /** Floating cream pill header */
 export function Shell({ children }: { children: React.ReactNode }) {
-  const path = usePathname();
+  const path = usePathname() ?? '/';
   const [me, setMe] = useState<Me | null>(null);
   const [clock, setClock] = useState('');
 

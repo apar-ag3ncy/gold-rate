@@ -1,6 +1,6 @@
 # Deployment – Chheda Gold Rate Automation
 
-**₹0 options: everything on Vercel (`docs/DEPLOY-VERCEL.md` – API as a serverless function, images in MongoDB, cron-job.org as the clock) or one free Oracle Cloud server (`docs/DEPLOY-ORACLE.md`)** (one script: `deploy/oracle/setup.sh`;
+**₹0 options: everything in the one Vercel project (`docs/DEPLOY-VERCEL.md` – the API runs inside the dashboard project, images in MongoDB, cron-job.org as the clock) or one free Oracle Cloud server (`docs/DEPLOY-ORACLE.md`)** (one script: `deploy/oracle/setup.sh`;
 dashboard + API + worker behind Nginx on a single https domain; images served from the same server; MongoDB Atlas free tier).
 
 The rest of this file is the split alternative: **API + worker on a paid Ubuntu VPS** (systemd + Nginx + Let's Encrypt), **dashboard on Vercel**,
